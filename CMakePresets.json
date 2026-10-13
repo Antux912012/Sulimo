@@ -1,0 +1,189 @@
+{
+  "version": 3,
+  "cmakeMinimumRequired": {
+    "major": 3,
+    "minor": 20,
+    "patch": 0
+  },
+  "configurePresets": [
+    {
+      "name": "portable",
+      "displayName": "Portable Baseline (Default)",
+      "description": "Portable baseline build with no architecture-specific compiler flags and GPU backends off",
+      "binaryDir": "${sourceDir}/build/portable",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Release",
+        "ARDA_CPU_TARGET": "portable",
+        "ARDA_ENABLE_VULKAN": "OFF",
+        "ARDA_ENABLE_OPENCL": "OFF",
+        "ARDA_ENABLE_SYCL": "OFF",
+        "ARDA_BUILD_TESTS": "ON"
+      }
+    },
+    {
+      "name": "cpu-only",
+      "displayName": "CPU-Only Build",
+      "description": "Explicit CPU-only build with all GPU backends disabled",
+      "binaryDir": "${sourceDir}/build/cpu-only",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Release",
+        "ARDA_CPU_TARGET": "portable",
+        "ARDA_ENABLE_VULKAN": "OFF",
+        "ARDA_ENABLE_OPENCL": "OFF",
+        "ARDA_ENABLE_SYCL": "OFF",
+        "ARDA_BUILD_TESTS": "ON"
+      }
+    },
+    {
+      "name": "classic",
+      "displayName": "Classic Profile Target",
+      "description": "Targeted preset for Haswell to Coffee Lake systems (AVX2 focus)",
+      "binaryDir": "${sourceDir}/build/classic",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Release",
+        "ARDA_CPU_TARGET": "classic",
+        "ARDA_ENABLE_VULKAN": "OFF",
+        "ARDA_ENABLE_OPENCL": "OFF",
+        "ARDA_ENABLE_SYCL": "OFF",
+        "ARDA_BUILD_TESTS": "ON"
+      }
+    },
+    {
+      "name": "current",
+      "displayName": "Current Profile Target",
+      "description": "Targeted preset for modern systems (AVX-512 / AVX-VNNI)",
+      "binaryDir": "${sourceDir}/build/current",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Release",
+        "ARDA_CPU_TARGET": "current",
+        "ARDA_ENABLE_VULKAN": "OFF",
+        "ARDA_ENABLE_OPENCL": "OFF",
+        "ARDA_ENABLE_SYCL": "OFF",
+        "ARDA_BUILD_TESTS": "ON"
+      }
+    },
+    {
+      "name": "vulkan",
+      "displayName": "Vulkan Acceleration Enabled",
+      "description": "Build with Vulkan backend enabled",
+      "binaryDir": "${sourceDir}/build/vulkan",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Release",
+        "ARDA_CPU_TARGET": "portable",
+        "ARDA_ENABLE_VULKAN": "ON",
+        "ARDA_ENABLE_OPENCL": "OFF",
+        "ARDA_ENABLE_SYCL": "OFF",
+        "ARDA_BUILD_TESTS": "ON"
+      }
+    },
+    {
+      "name": "opencl",
+      "displayName": "OpenCL Acceleration Enabled",
+      "description": "Build with OpenCL backend enabled",
+      "binaryDir": "${sourceDir}/build/opencl",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Release",
+        "ARDA_CPU_TARGET": "portable",
+        "ARDA_ENABLE_VULKAN": "OFF",
+        "ARDA_ENABLE_OPENCL": "ON",
+        "ARDA_ENABLE_SYCL": "OFF",
+        "ARDA_BUILD_TESTS": "ON"
+      }
+    },
+    {
+      "name": "native",
+      "displayName": "Native Development Build",
+      "description": "Local development build using host architecture tuning (not for distribution)",
+      "binaryDir": "${sourceDir}/build/native",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "RelWithDebInfo",
+        "ARDA_CPU_TARGET": "native",
+        "ARDA_ENABLE_VULKAN": "OFF",
+        "ARDA_ENABLE_OPENCL": "OFF",
+        "ARDA_ENABLE_SYCL": "OFF",
+        "ARDA_BUILD_TESTS": "ON"
+      }
+    }
+  ],
+  "buildPresets": [
+    {
+      "name": "portable",
+      "configurePreset": "portable"
+    },
+    {
+      "name": "cpu-only",
+      "configurePreset": "cpu-only"
+    },
+    {
+      "name": "classic",
+      "configurePreset": "classic"
+    },
+    {
+      "name": "current",
+      "configurePreset": "current"
+    },
+    {
+      "name": "vulkan",
+      "configurePreset": "vulkan"
+    },
+    {
+      "name": "opencl",
+      "configurePreset": "opencl"
+    },
+    {
+      "name": "native",
+      "configurePreset": "native"
+    }
+  ],
+  "testPresets": [
+    {
+      "name": "portable",
+      "configurePreset": "portable",
+      "output": {
+        "outputOnFailure": true
+      }
+    },
+    {
+      "name": "cpu-only",
+      "configurePreset": "cpu-only",
+      "output": {
+        "outputOnFailure": true
+      }
+    },
+    {
+      "name": "classic",
+      "configurePreset": "classic",
+      "output": {
+        "outputOnFailure": true
+      }
+    },
+    {
+      "name": "current",
+      "configurePreset": "current",
+      "output": {
+        "outputOnFailure": true
+      }
+    },
+    {
+      "name": "vulkan",
+      "configurePreset": "vulkan",
+      "output": {
+        "outputOnFailure": true
+      }
+    },
+    {
+      "name": "opencl",
+      "configurePreset": "opencl",
+      "output": {
+        "outputOnFailure": true
+      }
+    },
+    {
+      "name": "native",
+      "configurePreset": "native",
+      "output": {
+        "outputOnFailure": true
+      }
+    }
+  ]
+}

@@ -1,0 +1,4 @@
+corrupt content without colons
+MemTotal 1234
+garbage data
+invalid: -9999

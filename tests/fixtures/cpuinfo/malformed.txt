@@ -1,0 +1,7 @@
+this is a corrupt cpuinfo file without standard key-values
+garbage line 1
+random: without proper colons
+processor
+vendor_id
+flags
+# end of corrupt file

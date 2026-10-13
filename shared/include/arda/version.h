@@ -1,0 +1,9 @@
+#ifndef ARDA_VERSION_H
+#define ARDA_VERSION_H
+
+#define ARDA_VERSION_MAJOR 0
+#define ARDA_VERSION_MINOR 1
+#define ARDA_VERSION_PATCH 0
+#define ARDA_VERSION_STRING "0.1.0-phase0"
+
+#endif /* ARDA_VERSION_H */
