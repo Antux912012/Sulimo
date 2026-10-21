@@ -6,6 +6,7 @@
 //! - `load <model.gguf> [--ctx N]`: Executes streaming model load into static arena, asserting $ZCOPY and measuring VmHWM.
 
 mod interactive;
+mod models_cli;
 
 use anyhow::{bail, Context, Result};
 use std::env;
@@ -33,6 +34,7 @@ INTERACTIVE MODE:
 
 SUBCOMMANDS:
     chat [MODEL.gguf]     Interactive conversation session with slash commands
+    models [SUBCOMMAND]   Manage models (list, search, download, remove, verify)
     probe                 Probe CPU, GPU, and system memory capabilities
     inspect <MODEL.gguf>  Inspect GGUF metadata, architecture, and memory budget plan
     load <MODEL.gguf>     Load model into static arena and assert $ZCOPY invariants
@@ -95,7 +97,7 @@ fn main() -> Result<()> {
 
     match args[0].as_str() {
         "chat" => {
-            let mut model_path = None;
+            let mut model_raw = None;
             let mut requested_ctx = None;
             let mut threads = None;
             let mut i = 1;
@@ -113,14 +115,22 @@ fn main() -> Result<()> {
                             i += 1;
                         }
                     }
-                    p if !p.starts_with('-') && model_path.is_none() => {
-                        model_path = Some(Path::new(p));
+                    p if !p.starts_with('-') && model_raw.is_none() => {
+                        model_raw = Some(p.to_string());
                     }
                     _ => {}
                 }
                 i += 1;
             }
-            interactive::InteractiveSession::new(model_path, requested_ctx, threads).run()?;
+            let resolved_path = match model_raw {
+                Some(ref target) => Some(models_cli::resolve_or_prompt_download(target)?),
+                None => None,
+            };
+            interactive::InteractiveSession::new(resolved_path.as_deref(), requested_ctx, threads)
+                .run()?;
+        }
+        "models" | "model" => {
+            models_cli::handle_models_command(&args[1..])?;
         }
         "-p" | "--prompt" | "--print" => {
             let prompt = if args.len() > 1 {
@@ -174,9 +184,10 @@ fn main() -> Result<()> {
                 }
                 i += 1;
             }
-            let target = model_path
-                .map(std::path::PathBuf::from)
-                .unwrap_or_else(|| sulimo_engine::bench::create_synthetic_benchmark_model(2048));
+            let target = match model_path {
+                Some(ref m) => models_cli::resolve_or_prompt_download(m)?,
+                None => sulimo_engine::bench::create_synthetic_benchmark_model(2048),
+            };
             let params = sulimo_engine::SamplingParams {
                 temperature,
                 greedy,
@@ -198,16 +209,19 @@ fn main() -> Result<()> {
         }
         "inspect" => {
             if args.len() < 2 {
-                bail!("Missing model path. Usage: sulimo-cli inspect <model.gguf>");
+                bail!("Missing model path. Usage: sulimo-cli inspect <model.gguf | model-id>");
             }
-            let model_path = Path::new(&args[1]);
-            run_inspect(model_path)?;
+            let resolved_path = models_cli::resolve_or_prompt_download(&args[1])?;
+            run_inspect(&resolved_path)?;
         }
         "load" => {
             if args.len() < 2 {
-                bail!("Missing model path. Usage: sulimo-cli load <model.gguf> [--ctx N]");
+                bail!(
+                    "Missing model path. Usage: sulimo-cli load <model.gguf | model-id> [--ctx N]"
+                );
             }
-            let model_path = Path::new(&args[1]);
+            let resolved_path = models_cli::resolve_or_prompt_download(&args[1])?;
+            let model_path = &resolved_path;
 
             let mut requested_ctx = None;
             for i in 2..args.len() {
@@ -224,9 +238,10 @@ fn main() -> Result<()> {
         }
         "run" => {
             if args.len() < 2 {
-                bail!("Missing model path. Usage: sulimo-cli run <model.gguf> -p \"<prompt>\" [OPTIONS]");
+                bail!("Missing model path. Usage: sulimo-cli run <model.gguf | model-id> -p \"<prompt>\" [OPTIONS]");
             }
-            let model_path = Path::new(&args[1]);
+            let resolved_path = models_cli::resolve_or_prompt_download(&args[1])?;
+            let model_path = &resolved_path;
 
             let mut prompt = String::from("Hello, who are you?");
             let mut requested_ctx = None;
@@ -334,14 +349,22 @@ fn main() -> Result<()> {
             );
             std::process::exit(1);
         }
-        other if other.ends_with(".gguf") || Path::new(other).is_file() => {
-            let model_path = Path::new(other);
-            interactive::InteractiveSession::new(Some(model_path), None, None).run()?;
-        }
         other => {
-            eprintln!("Unknown subcommand: '{other}'");
-            print_usage();
-            std::process::exit(1);
+            // Check if it's a file, installed model, or registry ID
+            if other.ends_with(".gguf")
+                || Path::new(other).is_file()
+                || sulimo_core::model_manager::find_model_by_id(other).is_some()
+                || sulimo_core::model_manager::ModelStore::new(None)
+                    .map(|s| s.is_model_installed(other))
+                    .unwrap_or(false)
+            {
+                let resolved = models_cli::resolve_or_prompt_download(other)?;
+                interactive::InteractiveSession::new(Some(&resolved), None, None).run()?;
+            } else {
+                eprintln!("Unknown subcommand: '{other}'");
+                print_usage();
+                std::process::exit(1);
+            }
         }
     }
 

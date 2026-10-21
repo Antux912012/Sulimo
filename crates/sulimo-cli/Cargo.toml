@@ -15,4 +15,6 @@ sulimo-cpu = { path = "../sulimo-cpu" }
 sulimo-ocl = { path = "../sulimo-ocl", default-features = false }
 sulimo-engine = { path = "../sulimo-engine", default-features = false }
 anyhow = "1.0.95"
+serde.workspace = true
 serde_json.workspace = true
+libc.workspace = true

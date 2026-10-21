@@ -205,7 +205,7 @@ impl InteractiveSession {
                             }
                         );
                     } else {
-                        println!("\x1b[38;5;214m[!] No model loaded.\x1b[0m Usage: /model <path/to/model.gguf> or /model synthetic");
+                        println!("\x1b[38;5;214m[!] No model loaded.\x1b[0m Type \x1b[1;36m/models\x1b[0m to list models, or \x1b[1;36m/model <path|id>\x1b[0m to load.");
                     }
                 } else if arg == "synthetic" {
                     println!(
@@ -215,9 +215,14 @@ impl InteractiveSession {
                     self.temp_model = Some(p.clone());
                     self.load_model(&p)?;
                 } else {
-                    let p = Path::new(arg);
-                    self.load_model(p)?;
+                    match crate::models_cli::resolve_or_prompt_download(arg) {
+                        Ok(p) => self.load_model(&p)?,
+                        Err(e) => eprintln!("\x1b[1;31m[!] Failed to load model: {e}\x1b[0m"),
+                    }
                 }
+            }
+            "/models" => {
+                let _ = crate::models_cli::handle_models_command(&[]);
             }
             "/system" => {
                 if arg.is_empty() {
@@ -336,7 +341,8 @@ impl InteractiveSession {
             "    \x1b[1;36m/system [text]\x1b[0m         Inspect or set system instruction prompt"
         );
         println!("\x1b[1;38;5;141m  Model & Parameters:\x1b[0m");
-        println!("    \x1b[1;36m/model [path]\x1b[0m          Inspect current model or load GGUF (/model synthetic for demo)");
+        println!("    \x1b[1;36m/models\x1b[0m                List available and installed models in storage pool");
+        println!("    \x1b[1;36m/model [path|id]\x1b[0m       Inspect current model or load by path/ID (/model synthetic for demo)");
         println!("    \x1b[1;36m/temp [val]\x1b[0m            Set sampling temperature (0.0 = greedy, default 0.7)");
         println!("    \x1b[1;36m/top_p [val]\x1b[0m           Set nucleus top-P sampling probability (default 0.9)");
         println!(
@@ -542,6 +548,15 @@ pub fn find_local_gguf_models() -> Vec<PathBuf> {
             let path = entry.path();
             if path.extension().and_then(|s| s.to_str()) == Some("gguf") {
                 models.push(path);
+            }
+        }
+    }
+    if let Ok(store) = sulimo_core::model_manager::ModelStore::new(None) {
+        if let Ok(installed) = store.list_installed_models() {
+            for m in installed {
+                if !models.contains(&m.path) {
+                    models.push(m.path);
+                }
             }
         }
     }

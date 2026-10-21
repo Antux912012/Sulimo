@@ -1100,6 +1100,8 @@ name = "sulimo-cli"
 version = "0.2.0"
 dependencies = [
  "anyhow",
+ "libc",
+ "serde",
  "serde_json",
  "sulimo-core",
  "sulimo-cpu",
