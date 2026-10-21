@@ -31,8 +31,10 @@ Súlimo solves this through a dedicated **asymmetric battery-first architecture*
 1. **Hard 5.20 GiB Unified Memory Ceiling**: Guarantees your Linux desktop and browser always have headroom—models run without triggering swap thrashing or OOM killers.
 2. **Asymmetric Prompt & Decode Split**: OpenCL FP16 SIMD8 accelerates prompt prefill on the integrated GPU; generation instantly transitions to physical CPU cores while the iGPU drops into **RC6 deep sleep** (saving 2–4W continuously).
 3. **Zero-Allocation Hot Path**: Autoregressive token generation performs **0 bytes of heap allocation**, backed by continuous static memory arenas and quantized Q8_0 circular KV caches.
-4. **Antigravity-Style Terminal CLI**: High-tech interactive REPL with live telemetry cards, rich slash commands, and seamless one-shot scripting.
-5. **Modern Libadwaita Desktop GUI**: Responsive GTK4 interface with 60 FPS frame-budget token coalescing, scroll-pause detection, and a real-time Arda Telemetry dashboard.
+4. **Curated Model Registry & 30 GB SSD Pool**: First-class support for **Qwen 2.5**, **Google Gemma 2**, **Liquid AI LFM**, **MiniCPM 3/5**, and **Meta Llama 3.2** within a dedicated 30.0 GB storage budget on 256 GB SSDs.
+5. **Resumable Cryptographic Downloader**: In-flight streaming SHA-256 calculation and HTTP `Range` resumption with zero RAM overhead.
+6. **Antigravity-Style Terminal CLI**: High-tech interactive REPL with live telemetry cards, rich slash commands, and seamless one-shot scripting.
+7. **Modern Libadwaita Desktop GUI**: Responsive GTK4 interface with 60 FPS frame-budget token coalescing, scroll-pause detection, dedicated Model Manager preferences dialog, and a real-time Arda Telemetry dashboard.
 
 ---
 
@@ -70,6 +72,27 @@ Prompt Received
 ◀─────────────── Súlimo Static Arena ──────────────▶ ◀─ Always Safe ──▶
 ```
 Before loading any model, Súlimo calculates exact weight footprints, context scratch buffers, and KV cache bounds. If a configuration would exceed the 5.20 GiB ceiling, Súlimo safely refuses to load rather than risking an OS freeze.
+
+### 3. Curated Local Model Hub & 30 GB Dedicated Storage Pool
+
+Súlimo natively manages a dedicated **30.0 GB model storage pool** (`~/.local/share/sulimo/models`) on the host SSD, featuring 12 pre-tested, verified local models across top modern architectures:
+
+| Model ID | Architecture | Quant | Download Size | 4K RAM | Highlights |
+|---|---|---|---|---|---|
+| `qwen2.5-3b-instruct` | `Qwen2` | `Q4_K_M` | 2.10 GB | 2.75 GiB | Premier 3B coding and reasoning model |
+| `minicpm3-4b` | `MiniCPM3` | `Q4_K_M` | 2.47 GB | 3.40 GiB | High-density 32K context bilingual model |
+| `llama-3.2-3b-instruct` | `Llama` | `Q4_K_M` | 2.02 GB | 2.70 GiB | Meta's flagship edge 3B instruct model |
+| `lfm2.5-2.6b` | `LFM` | `Q4_0` | 1.59 GB | 2.10 GiB | Liquid AI hybrid dynamical foundation model |
+| `gemma-2-2b-it` | `Gemma2` | `Q4_K_M` | 1.71 GB | 2.25 GiB | Google Gemma 2 with dual RMSNorm and softcapping |
+| `qwen2.5-1.5b-instruct` | `Qwen2` | `Q4_0` | 1.07 GB | 1.45 GiB | Top ~1 GB coding and reasoning workhorse |
+| `minicpm5-2b` | `MiniCPM3` | `Q4_K_M` | 1.56 GB | 2.10 GiB | OpenBMB bilingual powerhouse |
+| `minicpm5-1b` | `MiniCPM3` | `Q4_K_M` | 688 MB | 1.10 GiB | Ultra-light on-device bilingual model |
+| `llama-3.2-1b-instruct` | `Llama` | `Q4_0` | 773 MB | 1.20 GiB | Fast general-purpose lightweight instruct |
+| `qwen2.5-0.5b-instruct` | `Qwen2` | `Q4_0` | 429 MB | 0.65 GiB | Blazing fast edge model (>25 tok/s) |
+| `lfm2.5-230m` | `LFM` | `Q4_0` | 149 MB | 0.25 GiB | Sub-150 MB liquid model for battery-first tasks |
+| `qwen2.5-1.5b-instruct-q8` | `Qwen2` | `Q8_0` | 1.89 GB | 2.22 GiB | Full Q8_0 weights with zero quantization loss |
+
+*See [`docs/models.md`](docs/models.md) for full architecture specifications and mathematical details.*
 
 ---
 
@@ -109,11 +132,38 @@ The CLI interface features an authentic Antigravity terminal aesthetic, rich box
 | `/probe` | Print comprehensive hardware topology and capability report |
 | `/exit` | Exit Súlimo CLI session |
 
+#### Model Management Subcommands
+```bash
+# List all curated models, download status, and 30 GB storage pool usage
+sulimo-cli models list
+
+# Output structured JSON for automation
+sulimo-cli models list --json
+
+# Search curated models by keyword or architecture
+sulimo-cli models search qwen
+
+# Stream download and verify a model with real-time ASCII progress bar
+sulimo-cli models download qwen2.5-1.5b-instruct
+
+# Verify cryptographic SHA-256 integrity of an installed model
+sulimo-cli models verify qwen2.5-1.5b-instruct
+
+# Remove an installed model and reclaim storage
+sulimo-cli models remove qwen2.5-1.5b-instruct
+```
+
+#### Automatic Download on Run
+If you run a model that isn't installed yet, Súlimo automatically prompts you and downloads it with in-flight verification before starting inference:
+```bash
+sulimo-cli run qwen2.5-1.5b-instruct -p "Explain quantum superposition in 2 sentences."
+```
+
 #### One-Shot & Scripting Mode
 You can use `sulimo-cli` in shell scripts or piping workflows:
 ```bash
 # Direct prompt execution
-sulimo-cli -m models/llama-3.2-3b-q4_0.gguf -p "Explain quantum superposition in 2 sentences."
+sulimo-cli -m qwen2.5-1.5b-instruct -p "Explain quantum superposition in 2 sentences."
 
 # Piped prompt
 echo "Summarize the current Linux kernel release." | sulimo-cli --print -

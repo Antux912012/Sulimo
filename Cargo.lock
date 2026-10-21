@@ -1097,7 +1097,7 @@ checksum = "13c2bddecc57b384dee18652358fb23172facb8a2c51ccc10d74c157bdea3292"
 
 [[package]]
 name = "sulimo-cli"
-version = "0.2.0"
+version = "0.3.0"
 dependencies = [
  "anyhow",
  "libc",
@@ -1111,7 +1111,7 @@ dependencies = [
 
 [[package]]
 name = "sulimo-core"
-version = "0.2.0"
+version = "0.3.0"
 dependencies = [
  "half",
  "libc",
@@ -1124,7 +1124,7 @@ dependencies = [
 
 [[package]]
 name = "sulimo-cpu"
-version = "0.2.0"
+version = "0.3.0"
 dependencies = [
  "half",
  "libc",
@@ -1136,7 +1136,7 @@ dependencies = [
 
 [[package]]
 name = "sulimo-engine"
-version = "0.2.0"
+version = "0.3.0"
 dependencies = [
  "fastrand",
  "half",
@@ -1150,7 +1150,7 @@ dependencies = [
 
 [[package]]
 name = "sulimo-gtk"
-version = "0.2.0"
+version = "0.3.0"
 dependencies = [
  "flume",
  "gtk4",
@@ -1161,7 +1161,7 @@ dependencies = [
 
 [[package]]
 name = "sulimo-ocl"
-version = "0.2.0"
+version = "0.3.0"
 dependencies = [
  "half",
  "libc",

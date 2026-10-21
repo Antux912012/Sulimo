@@ -146,11 +146,22 @@ Create a dedicated model management module:
 └─────────────────────────────────────────────────────────────────────────┘
 ```
 
+### Milestone Execution & Status Tracking
+
+| Milestone | Scope / Module | Status | Commit / Notes |
+| :--- | :--- | :---: | :--- |
+| **MM0** | Grounding & Curated Registry (`sulimo-core`) | **COMPLETED** | `1dc57bc`: 12 verified models across 5 architectures, SHA-256 hashes, exact HF URLs |
+| **MM1** | Architecture Kernels & Tensor Mapping (`sulimo-cpu`, `sulimo-engine`) | **COMPLETED** | `5980f5e`: Gemma 2 dual RMSNorm, logit softcapping, GeGLU, QKV bias, QK-Norm, embedding scaling |
+| **MM2** | Resumable Downloader & Model Store Core (`sulimo-core`) | **COMPLETED** | `70e68c9`: 30 GB storage cap, `statvfs` pre-check, HTTP 206 resume, streaming SHA-256 |
+| **MM3** | Antigravity CLI Model Hub & Slash Commands (`sulimo-cli`) | **COMPLETED** | `3edacbe`: `models` CLI subcommands, live ASCII progress, auto-download on `run`, REPL `/models` |
+| **MM4** | Libadwaita Desktop GUI Model Hub (`sulimo-gtk`) | **COMPLETED** | `e50ccb6`: Model Hub dialog, 30 GB SSD gauge, async download thread & flume channels, instant load |
+| **MM5** | End-to-End Verification, Benchmarks & Release v0.3.0 | **COMPLETED** | `v0.3.0` bump, debian packaging, Arda Tech PPA synchronization, documentation & arch specs |
+
 ---
 
 ## 4. Milestone Details & Acceptance Criteria
 
-### Milestone MM0: Model Selection Grounding & Registry Specification
+### Milestone MM0: Model Selection Grounding & Registry Specification [COMPLETED]
 - **Objective**: Finalize the curated model catalog with direct Hugging Face download endpoints, exact file sizes, SHA-256 hashes, context sizes, and template definitions.
 - **Tasks**:
   1. Define `ModelMetadata` struct in `crates/sulimo-core/src/model_manager/mod.rs`.
@@ -166,7 +177,7 @@ Create a dedicated model management module:
 
 ---
 
-### Milestone MM1: Architecture Expansion in `sulimo-core` & `sulimo-engine`
+### Milestone MM1: Architecture Expansion in `sulimo-core` & `sulimo-engine` [COMPLETED]
 - **Objective**: Extend GGUF loader and execution kernels to handle Gemma 2, Qwen2, MiniCPM, and LFM architectures.
 - **Tasks**:
   1. Add `ModelArch::Gemma2`, `ModelArch::MiniCPM3`, and `ModelArch::LFM` to `sulimo-core::model_config`.
@@ -183,7 +194,7 @@ Create a dedicated model management module:
 
 ---
 
-### Milestone MM2: Resumable Downloader & Model Manager Core
+### Milestone MM2: Resumable Downloader & Model Manager Core [COMPLETED]
 - **Objective**: Build a robust, non-blocking HTTP streaming downloader with disk safety, SHA-256 verification, and resume capability.
 - **Tasks**:
   1. Add `ureq` (or `reqwest` with `rustls`) and `sha2` dependencies to workspace.
@@ -197,7 +208,7 @@ Create a dedicated model management module:
 
 ---
 
-### Milestone MM3: Antigravity CLI Model Hub & Slash Commands
+### Milestone MM3: Antigravity CLI Model Hub & Slash Commands [COMPLETED]
 - **Objective**: Provide a first-class terminal experience for browsing, downloading, and switching models in `sulimo-cli`.
 - **Tasks**:
   1. Implement CLI subcommands:
@@ -214,7 +225,7 @@ Create a dedicated model management module:
 
 ---
 
-### Milestone MM4: Libadwaita Desktop GUI Model Hub
+### Milestone MM4: Libadwaita Desktop GUI Model Hub [COMPLETED]
 - **Objective**: Implement a modern, intuitive Model Hub interface in `sulimo-gtk`.
 - **Tasks**:
   1. Create `ModelHubDialog` or `ModelHubView` using Libadwaita widgets (`AdwPreferencesWindow`, `AdwActionRow`, `AdwStatusPage`).
@@ -229,7 +240,7 @@ Create a dedicated model management module:
 
 ---
 
-### Milestone MM5: End-to-End Verification, Benchmarks & Release v0.3.0
+### Milestone MM5: End-to-End Verification, Benchmarks & Release v0.3.0 [COMPLETED]
 - **Objective**: Full end-to-end testing, hardware benchmark verification, packaging, and PPA release.
 - **Tasks**:
   1. Run full test suite: `./scripts/check.sh` (clippy, fmt, tests).
