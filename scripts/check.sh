@@ -2,6 +2,11 @@
 # Súlimo continuous verification script (fmt, clippy, tests).
 set -euo pipefail
 
+if [ -d "${HOME}/.local/share/sulimo/drivers/lib" ]; then
+    export LD_LIBRARY_PATH="${HOME}/.local/share/sulimo/drivers/lib:${LD_LIBRARY_PATH:-}"
+    export OCL_ICD_VENDORS="${HOME}/.local/share/sulimo/drivers/icd"
+fi
+
 echo "==> Running cargo fmt check..."
 cargo fmt --all -- --check
 

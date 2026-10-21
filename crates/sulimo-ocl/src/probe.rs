@@ -80,9 +80,39 @@ pub fn probe() -> OclProbeResult {
 }
 
 #[cfg(feature = "opencl")]
+pub fn ensure_icd_env() {
+    if std::env::var("OCL_ICD_VENDORS").is_err() {
+        if let Ok(home) = std::env::var("HOME") {
+            let user_icd = std::path::Path::new(&home).join(".local/share/sulimo/drivers/icd");
+            if user_icd.exists() {
+                // SAFETY: setting environment variable before OpenCL platform lookup.
+                unsafe { std::env::set_var("OCL_ICD_VENDORS", user_icd) };
+            }
+        }
+    }
+
+    if let Ok(home) = std::env::var("HOME") {
+        let user_lib = std::path::Path::new(&home).join(".local/share/sulimo/drivers/lib");
+        if user_lib.exists() {
+            let cur = std::env::var("LD_LIBRARY_PATH").unwrap_or_default();
+            if !cur.contains(user_lib.to_str().unwrap_or_default()) {
+                let new_ld = if cur.is_empty() {
+                    user_lib.to_string_lossy().to_string()
+                } else {
+                    format!("{}:{cur}", user_lib.display())
+                };
+                unsafe { std::env::set_var("LD_LIBRARY_PATH", new_ld) };
+            }
+        }
+    }
+}
+
+#[cfg(feature = "opencl")]
 fn probe_opencl_internal() -> OclProbeResult {
     use opencl3::device::{Device, CL_DEVICE_TYPE_ALL, CL_DEVICE_TYPE_GPU};
     use opencl3::platform::get_platforms;
+
+    ensure_icd_env();
 
     let platforms = match get_platforms() {
         Ok(p) => p,

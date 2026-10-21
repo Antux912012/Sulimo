@@ -253,6 +253,8 @@ dependencies = [
 name = "sulimo-ocl"
 version = "0.2.0"
 dependencies = [
+ "half",
+ "libc",
  "opencl3",
  "serde",
  "sulimo-core",

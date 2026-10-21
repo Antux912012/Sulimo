@@ -11,6 +11,8 @@ opencl = ["dep:opencl3"]
 
 [dependencies]
 sulimo-core = { path = "../sulimo-core" }
+half.workspace = true
+libc.workspace = true
 thiserror.workspace = true
 serde.workspace = true
 opencl3 = { workspace = true, optional = true }
