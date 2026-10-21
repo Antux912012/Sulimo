@@ -1,7 +1,7 @@
 # Súlimo (Arda's Breath): Model Hub & Multi-Architecture Expansion Build Plan
-## Support for Qwen, Gemma, Liquid AI, and MiniCPM on Constrained Hardware (8 GB RAM / 30 GB Disk)
+## Support for Qwen, Gemma, Liquid AI, and MiniCPM on Constrained Hardware (8 GB RAM / 256 GB SSD with 30.0 GB Model Storage Cap)
 
-> **Document Version:** v1.0.0  
+> **Document Version:** v1.1.0  
 > **Target Audience:** Gemini 3.8 / Autonomous Coding Agent  
 > **Reviewer/Gatekeeper:** Antonio (human approval required at each milestone gate)  
 > **Repository:** `/home/antonio/Projects/Súlimo`  
@@ -15,7 +15,9 @@
 1. **Gate Discipline**: Implement exactly **one milestone at a time** (MM0 through MM5). Do not start the next milestone until the human explicitly replies `APPROVED MMx`.
 2. **Hardware Constraints are Absolute**:
    - **Unified RAM Ceiling**: **5.20 GiB maximum** memory footprint (weights + KV cache + scratch arena + runtime). The host system has 8 GB RAM; exceeding 5.20 GiB triggers Linux OOM killer or swap thrashing.
-   - **Disk Space Ceiling**: Total system disk is **30 GB SSD** with ~10–14 GB available for user files. Models must be compact (0.4 GB to 2.3 GB at Q4_0/Q4_K_M). The download manager **must verify free disk space via `statvfs` before starting any download** and reserve a 500 MiB safety buffer.
+   - **Storage Allocation**: Host SSD is typically **256 GB**. Súlimo enforces a **strict 30.0 GB maximum storage quota dedicated to local models** (`MAX_MODELS_STORAGE_BUDGET_BYTES = 30_000_000_000`). The download manager must verify:
+     1. Total installed models + new model $\le$ **30.0 GB**.
+     2. Host filesystem free disk space via `statvfs` $\ge$ `model_size + 500 MiB` safety buffer.
 3. **Safety & Zero-Corrupt Downloads**:
    - Streaming HTTP(S) downloads with `Range` header resume support.
    - Downloads write to `<model>.part` with on-the-fly SHA-256 computation.
@@ -45,6 +47,7 @@ With up to **30.0 GB of SSD storage dedicated to the model library**, Súlimo ca
 | **`lfm2.5-2.6b`** (Liquid AI) | `lfm` | 2.60B | Q4_0 | **1.59 GB** | **2.25 GiB** | **Optimal** | **Hybrid Conv/RNN/Attention**: Ultra-efficient memory footprint, fast TTFT, minimal KV cache scaling. |
 | **`qwen2.5-1.5b-instruct`** | `qwen2` | 1.54B | Q4_0 | **1.07 GB** | **1.56 GiB** | **Optimal** | **Fast Daily Workhorse**: High speed, low memory, strong code and multi-turn capabilities. |
 | **`qwen2.5-1.5b-instruct-q8`**| `qwen2` | 1.54B | Q8_0 | **1.89 GB** | **2.38 GiB** | **Optimal** | **High-Precision Quant**: Near-lossless FP16 output quality in under 2 GB disk. |
+| **`minicpm5-2b`** | `minicpm3` | 2.40B | Q4_K_M | **1.56 GB** | **2.25 GiB** | **Optimal** | **State-of-the-Art 2B Bilingual**: Exceptional reasoning from OpenBMB in a 1.56 GB footprint. |
 | **`minicpm5-1b`** | `minicpm3` | 1.10B | Q4_K_M | **0.69 GB** | **1.18 GiB** | **Optimal** | **On-Device Bilingual Lightweight**: Sub-1GB storage, fast execution on Intel iGPUs. |
 | **`llama-3.2-1b-instruct`** | `llama` | 1.23B | Q4_0 | **0.77 GB** | **1.29 GiB** | **Optimal** | **Reference 1B Baseline**: Compact, fast, well-tested on Súlimo engine. |
 | **`qwen2.5-0.5b-instruct`** | `qwen2` | 0.49B | Q4_0 | **0.43 GB** | **0.70 GiB** | **Optimal** | **Ultra-Low Memory / Max Speed**: Consumes almost no disk or RAM; streams at >25 tok/s on legacy i5-7200U. |
