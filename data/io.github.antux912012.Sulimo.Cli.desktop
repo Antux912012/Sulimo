@@ -1,0 +1,10 @@
+[Desktop Entry]
+Name=Súlimo CLI
+Comment=Local, battery-disciplined LLM inference terminal assistant
+GenericName=Terminal AI Assistant
+Exec=sulimo-cli
+Icon=io.github.antux912012.Sulimo.Cli
+Terminal=true
+Type=Application
+Categories=Utility;ConsoleOnly;Development;
+StartupNotify=false

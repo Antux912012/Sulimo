@@ -1,40 +1,27 @@
-<?xml version="1.0" encoding="UTF-8"?>
-<svg xmlns="http://www.w3.org/2000/svg" width="128" height="128" viewBox="0 0 128 128">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" width="128" height="128">
   <defs>
-    <linearGradient id="bgGrad" x1="0%" y1="0%" x2="100%" y2="100%">
-      <stop offset="0%" stop-color="#1c71d8"/>
-      <stop offset="50%" stop-color="#3584e4"/>
-      <stop offset="100%" stop-color="#62a0ea"/>
+    <!-- Background Gradient: GNOME Libadwaita Palette -->
+    <linearGradient id="bgGrad" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#62a0ea" />
+      <stop offset="100%" stop-color="#1c71d8" />
     </linearGradient>
-    <linearGradient id="windGrad" x1="0%" y1="0%" x2="100%" y2="0%">
-      <stop offset="0%" stop-color="#ffffff" stop-opacity="0.95"/>
-      <stop offset="100%" stop-color="#c0bfbc" stop-opacity="0.85"/>
-    </linearGradient>
+    
+    <!-- Papirus-style Crisp Drop Shadow -->
     <filter id="dropShadow" x="-10%" y="-10%" width="120%" height="120%">
-      <feDropShadow dx="0" dy="4" stdDeviation="4" flood-opacity="0.25"/>
+      <feDropShadow dx="0" dy="4" stdDeviation="4" flood-color="#000000" flood-opacity="0.25" />
     </filter>
   </defs>
 
-  <!-- Background squircle -->
-  <rect x="8" y="8" width="112" height="112" rx="28" fill="url(#bgGrad)" filter="url(#dropShadow)"/>
+  <!-- Squircle Base -->
+  <rect x="4" y="4" width="120" height="120" rx="28" ry="28" fill="url(#bgGrad)" />
+  
+  <!-- Subtle Top Highlight Border (Libadwaita Depth) -->
+  <rect x="4" y="4" width="120" height="120" rx="28" ry="28" fill="none" stroke="#ffffff" stroke-width="2" stroke-opacity="0.3" />
 
-  <!-- Inner ambient breeze glow -->
-  <circle cx="64" cy="64" r="44" fill="#ffffff" fill-opacity="0.08"/>
-
-  <!-- Stylized Breath of Arda (Wind swirls) -->
-  <g fill="none" stroke="url(#windGrad)" stroke-linecap="round">
-    <!-- Top breath swirl -->
-    <path d="M 28 44 C 44 44 68 40 82 40 C 94 40 102 46 102 54 C 102 62 94 66 86 66 C 80 66 76 62 76 58" stroke-width="6"/>
-
-    <!-- Middle aerodynamic stream -->
-    <path d="M 22 64 C 42 64 74 62 96 62 C 104 62 108 64 108 68" stroke-width="5" stroke-opacity="0.7"/>
-
-    <!-- Bottom breath swirl -->
-    <path d="M 32 84 C 52 84 72 86 86 86 C 96 86 104 80 104 74 C 104 68 98 64 90 64" stroke-width="6"/>
-
-    <!-- Minor breath accent particles -->
-    <circle cx="36" cy="54" r="2.5" fill="#ffffff" stroke="none"/>
-    <circle cx="48" cy="74" r="2.5" fill="#ffffff" stroke="none"/>
-    <circle cx="62" cy="74" r="2" fill="#ffffff" stroke="none"/>
+  <!-- Dynamic Wind / Flow Symbol -->
+  <g filter="url(#dropShadow)">
+    <path d="M 36 44 C 50 44, 75 44, 88 44 C 98 44, 102 36, 96 30 C 90 24, 78 28, 76 38 C 74 48, 86 64, 92 72" fill="none" stroke="#ffffff" stroke-width="8" stroke-linecap="round" stroke-opacity="0.95" />
+    <path d="M 32 64 C 45 64, 68 64, 78 64 C 86 64, 92 70, 88 78 C 84 84, 72 82, 70 74 C 68 66, 78 54, 84 48" fill="none" stroke="#ffffff" stroke-width="8" stroke-linecap="round" stroke-opacity="0.65" />
+    <path d="M 36 84 C 48 84, 64 84, 72 84 C 80 84, 84 90, 80 96 C 76 102, 64 100, 62 92" fill="none" stroke="#ffffff" stroke-width="8" stroke-linecap="round" stroke-opacity="0.35" />
   </g>
 </svg>

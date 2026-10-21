@@ -1,0 +1,59 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" width="128" height="128">
+  <defs>
+    <!-- Antigravity Dark Canvas Palette -->
+    <linearGradient id="agyDarkBg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#1e1e2e" />
+      <stop offset="50%" stop-color="#181825" />
+      <stop offset="100%" stop-color="#11111b" />
+    </linearGradient>
+
+    <!-- Glowing Cyan to Electric Indigo Gradient (Antigravity Celestial Core) -->
+    <linearGradient id="agyCyanIndigo" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#00f2fe" />
+      <stop offset="50%" stop-color="#4facfe" />
+      <stop offset="100%" stop-color="#7000ff" />
+    </linearGradient>
+
+    <!-- Neon Wind Accent Gradient -->
+    <linearGradient id="windAccent" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#00f2fe" stop-opacity="0.9" />
+      <stop offset="100%" stop-color="#38ef7d" stop-opacity="0.8" />
+    </linearGradient>
+
+    <!-- Antigravity Neon Glow Filter -->
+    <filter id="neonGlow" x="-20%" y="-20%" width="140%" height="140%">
+      <feGaussianBlur stdDeviation="3" result="blur1" />
+      <feGaussianBlur stdDeviation="6" result="blur2" />
+      <feMerge>
+        <feMergeNode in="blur2" />
+        <feMergeNode in="blur1" />
+        <feMergeNode in="SourceGraphic" />
+      </feMerge>
+    </filter>
+  </defs>
+
+  <!-- Deep Dark Squircle Base -->
+  <rect x="4" y="4" width="120" height="120" rx="28" ry="28" fill="url(#agyDarkBg)" stroke="#313244" stroke-width="1.5" />
+  
+  <!-- Subtle Internal Glow Ring -->
+  <rect x="7" y="7" width="114" height="114" rx="25" ry="25" fill="none" stroke="url(#agyCyanIndigo)" stroke-width="1" stroke-opacity="0.35" />
+
+  <!-- Antigravity Concentric Gravitational / Orbital Ring -->
+  <circle cx="64" cy="64" r="42" fill="none" stroke="url(#agyCyanIndigo)" stroke-width="2" stroke-dasharray="8 6" stroke-opacity="0.4" />
+
+  <!-- Súlimo Wind & Terminal Prompt Symbol -->
+  <g filter="url(#neonGlow)">
+    <!-- Top Fluid Wind Arc -->
+    <path d="M 32 44 C 48 44, 76 44, 90 44 C 98 44, 102 36, 96 30 C 90 24, 78 28, 76 38 C 74 48, 86 64, 92 72" fill="none" stroke="url(#agyCyanIndigo)" stroke-width="7" stroke-linecap="round" />
+    
+    <!-- Central Flow Arc with CLI Prompt Symbol ">" -->
+    <path d="M 28 64 C 42 64, 66 64, 76 64 C 84 64, 90 70, 86 78 C 82 84, 72 82, 70 74 C 68 66, 78 54, 84 48" fill="none" stroke="url(#windAccent)" stroke-width="7" stroke-linecap="round" />
+
+    <!-- Terminal Prompt Symbol Overlay (">_") -->
+    <path d="M 36 78 L 48 86 L 36 94" fill="none" stroke="#00f2fe" stroke-width="5" stroke-linecap="round" stroke-linejoin="round" />
+    <line x1="56" y1="94" x2="70" y2="94" stroke="#00f2fe" stroke-width="5" stroke-linecap="round" />
+  </g>
+
+  <!-- Pulsing Quantum Core Particle -->
+  <circle cx="64" cy="64" r="3" fill="#ffffff" filter="url(#neonGlow)" />
+</svg>

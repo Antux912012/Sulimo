@@ -30,8 +30,10 @@ ln -sf sulimo-cli "${STAGE_DIR}/usr/bin/arda-probe"
 
 # FreeDesktop Desktop, Metainfo, Icons
 install -m 644 "${ROOT_DIR}/data/io.github.antux912012.Sulimo.desktop" "${STAGE_DIR}/usr/share/applications/io.github.antux912012.Sulimo.desktop"
+install -m 644 "${ROOT_DIR}/data/io.github.antux912012.Sulimo.Cli.desktop" "${STAGE_DIR}/usr/share/applications/io.github.antux912012.Sulimo.Cli.desktop"
 install -m 644 "${ROOT_DIR}/data/io.github.antux912012.Sulimo.metainfo.xml" "${STAGE_DIR}/usr/share/metainfo/io.github.antux912012.Sulimo.metainfo.xml"
 install -m 644 "${ROOT_DIR}/data/icons/hicolor/scalable/apps/io.github.antux912012.Sulimo.svg" "${STAGE_DIR}/usr/share/icons/hicolor/scalable/apps/io.github.antux912012.Sulimo.svg"
+install -m 644 "${ROOT_DIR}/data/icons/hicolor/scalable/apps/io.github.antux912012.Sulimo.Cli.svg" "${STAGE_DIR}/usr/share/icons/hicolor/scalable/apps/io.github.antux912012.Sulimo.Cli.svg"
 
 # Documentation
 install -m 644 "${ROOT_DIR}/README.md" "${STAGE_DIR}/usr/share/doc/sulimo/README.md"
