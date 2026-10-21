@@ -15,3 +15,4 @@ sulimo-cpu = { path = "../sulimo-cpu" }
 sulimo-ocl = { path = "../sulimo-ocl", default-features = false }
 thiserror.workspace = true
 serde.workspace = true
+fastrand = "2.5.0"

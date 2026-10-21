@@ -103,9 +103,72 @@ fn main() -> Result<()> {
 
             run_load(model_path, requested_ctx)?;
         }
-        "run" | "bench" | "golden-compare" => {
+        "run" => {
+            if args.len() < 2 {
+                bail!("Missing model path. Usage: sulimo-cli run <model.gguf> -p \"<prompt>\" [OPTIONS]");
+            }
+            let model_path = Path::new(&args[1]);
+
+            let mut prompt = String::from("Hello, who are you?");
+            let mut requested_ctx = None;
+            let mut threads = None;
+            let mut greedy = false;
+            let mut temperature = 0.7f32;
+            let mut max_tokens = 32usize;
+
+            let mut i = 2;
+            while i < args.len() {
+                match args[i].as_str() {
+                    "-p" | "--prompt" => {
+                        if i + 1 < args.len() {
+                            prompt = args[i + 1].clone();
+                            i += 1;
+                        }
+                    }
+                    "--ctx" => {
+                        if i + 1 < args.len() {
+                            requested_ctx = Some(args[i + 1].parse()?);
+                            i += 1;
+                        }
+                    }
+                    "-t" | "--threads" => {
+                        if i + 1 < args.len() {
+                            threads = Some(args[i + 1].parse()?);
+                            i += 1;
+                        }
+                    }
+                    "--max-tokens" | "-n" => {
+                        if i + 1 < args.len() {
+                            max_tokens = args[i + 1].parse()?;
+                            i += 1;
+                        }
+                    }
+                    "--temp" => {
+                        if i + 1 < args.len() {
+                            temperature = args[i + 1].parse()?;
+                            i += 1;
+                        }
+                    }
+                    "--greedy" => {
+                        greedy = true;
+                    }
+                    _ => {}
+                }
+                i += 1;
+            }
+
+            let params = sulimo_engine::SamplingParams {
+                temperature,
+                greedy,
+                max_tokens,
+                ..Default::default()
+            };
+
+            run_inference(model_path, &prompt, requested_ctx, threads, &params)?;
+        }
+        "bench" | "golden-compare" => {
             eprintln!(
-                "Subcommand '{}' is planned for subsequent milestones (M2–M6).",
+                "Subcommand '{}' is planned for subsequent milestones (M6).",
                 args[0]
             );
             std::process::exit(1);
@@ -261,6 +324,51 @@ fn run_load(path: &Path, requested_ctx: Option<usize>) -> Result<()> {
     println!("  - Every allocated size padded to 64 B:    PASSED");
     println!("  - Q4_0 AoS to SoA repacking:             PASSED");
     println!("============================================================");
+
+    Ok(())
+}
+
+fn run_inference(
+    path: &Path,
+    prompt: &str,
+    requested_ctx: Option<usize>,
+    threads: Option<usize>,
+    params: &sulimo_engine::SamplingParams,
+) -> Result<()> {
+    use std::io::Write;
+    use std::sync::atomic::AtomicBool;
+
+    println!("Loading engine for model: {}", path.display());
+    let mut engine = sulimo_engine::Engine::load(path, requested_ctx, threads)
+        .context("failed to initialize inference engine")?;
+
+    let formatted = engine.tokenizer.format_chat_prompt(
+        &engine.model.config.pre_tokenizer,
+        Some("You are a helpful assistant."),
+        prompt,
+    );
+
+    println!("\nPrompt: {}", prompt);
+    print!("Response: ");
+    std::io::stdout().flush()?;
+
+    let cancel = AtomicBool::new(false);
+    let stats = engine.generate_with_callback(&formatted, params, &cancel, |token_str| {
+        print!("{}", token_str);
+        let _ = std::io::stdout().flush();
+    })?;
+
+    println!("\n");
+    let (_, hwm) = get_process_memory_stats();
+    println!("------------------------------------------------------------");
+    println!("Prompt tokens:    {}", stats.prompt_tokens);
+    println!("Generated tokens: {}", stats.completion_tokens);
+    println!("TTFT:             {:.2} ms", stats.ttft_ms);
+    println!("Prefill speed:    {:.2} tok/s", stats.prefill_tok_per_sec);
+    println!("Decode speed:     {:.2} tok/s", stats.decode_tok_per_sec);
+    println!("Total time:       {:.2} ms", stats.total_time_ms);
+    println!("Peak RSS (VmHWM): {}", format_bytes_auto(hwm));
+    println!("------------------------------------------------------------");
 
     Ok(())
 }

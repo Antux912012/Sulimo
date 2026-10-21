@@ -7,15 +7,18 @@
 pub mod arena;
 pub mod budget;
 pub mod gguf;
+pub mod kv_cache;
 pub mod loader;
 pub mod model_config;
 pub mod repack;
 pub mod sysmem;
 pub mod tier;
+pub mod tokenizer;
 
 pub use arena::{Arena, ArenaError, ArenaRegion, ArenaSlice};
 pub use budget::{BudgetError, MemoryBudget, MemoryBudgetPlan};
 pub use gguf::{GgmlType, GgufError, GgufFile, GgufMmap, GgufValue, TensorInfo};
+pub use kv_cache::{dequantize_q8_0_to_f32, quantize_f32_to_q8_0, KvCache, KvCacheError};
 pub use loader::{
     get_process_memory_stats, LoadedModel, LoadedTensor, LoadedTensorData, LoaderError,
 };
@@ -26,3 +29,4 @@ pub use repack::{
 };
 pub use sysmem::{SysMem, SysMemError, ThpMode, MAX_RAM_BUDGET_BYTES};
 pub use tier::ExecutionTier;
+pub use tokenizer::{Tokenizer, TokenizerError};

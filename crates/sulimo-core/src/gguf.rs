@@ -542,7 +542,6 @@ fn read_value<'a>(
     }
 }
 
-#[cfg(test)]
 pub mod test_utils {
     use super::*;
 

@@ -27,6 +27,8 @@ pub enum LoaderError {
     Budget(#[from] BudgetError),
     #[error("arena memory error: {0}")]
     Arena(#[from] ArenaError),
+    #[error("KV cache error: {0}")]
+    KvCache(#[from] crate::kv_cache::KvCacheError),
     #[error("repack error for tensor '{0}': {1}")]
     Repack(String, RepackError),
     #[error("I/O error: {0}")]

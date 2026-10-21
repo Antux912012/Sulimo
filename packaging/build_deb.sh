@@ -14,6 +14,7 @@ cmake --build "${ROOT_DIR}/build" --parallel
 
 rm -rf "${STAGE_DIR}"
 mkdir -p "${STAGE_DIR}/DEBIAN" "${STAGE_DIR}/usr/bin" "${STAGE_DIR}/usr/share/doc/sulimo"
+chmod 755 "${STAGE_DIR}/DEBIAN"
 install -m 755 "${ROOT_DIR}/build/tools/arda-probe/arda-probe" "${STAGE_DIR}/usr/bin/arda-probe"
 ln -sf arda-probe "${STAGE_DIR}/usr/bin/sulimo"
 install -m 644 "${ROOT_DIR}/README.md" "${STAGE_DIR}/usr/share/doc/sulimo/README.md"

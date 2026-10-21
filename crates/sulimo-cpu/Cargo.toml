@@ -11,3 +11,4 @@ thiserror.workspace = true
 serde.workspace = true
 libc.workspace = true
 num_cpus = "1.16.0"
+half.workspace = true
