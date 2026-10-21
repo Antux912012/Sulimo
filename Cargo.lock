@@ -258,6 +258,7 @@ dependencies = [
  "opencl3",
  "serde",
  "sulimo-core",
+ "sulimo-cpu",
  "thiserror",
 ]
 

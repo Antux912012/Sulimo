@@ -16,3 +16,6 @@ libc.workspace = true
 thiserror.workspace = true
 serde.workspace = true
 opencl3 = { workspace = true, optional = true }
+
+[dev-dependencies]
+sulimo-cpu = { path = "../sulimo-cpu" }

@@ -18,7 +18,8 @@ use std::path::PathBuf;
 use thiserror::Error;
 
 const GEMM_KERNEL_SOURCE: &str = include_str!("../../../kernels/gemm_q4_0.cl");
-const GEMM_BUILD_OPTIONS: &str = "-DGEN8_PLUS_FP16 -cl-mad-enable -cl-fast-relaxed-math";
+const PREFILL_KERNEL_SOURCE: &str = include_str!("../../../kernels/prefill.cl");
+const BUILD_OPTIONS: &str = "-DGEN8_PLUS_FP16 -cl-mad-enable -cl-fast-relaxed-math";
 
 /// Errors returned by OpenCL operations.
 #[derive(Debug, Error)]
@@ -54,6 +55,13 @@ pub struct OclContext {
     pub program: Program,
     pub kernel_intel: Option<Kernel>,
     pub kernel_portable: Kernel,
+    pub kernel_rmsnorm: Kernel,
+    pub kernel_rope: Kernel,
+    pub kernel_kv_store: Kernel,
+    pub kernel_attention: Kernel,
+    pub kernel_silu_mul: Kernel,
+    pub kernel_add: Kernel,
+    pub kernel_logits: Kernel,
     pub active_variant: KernelVariant,
     pub device_info: OclDeviceInfo,
 }
@@ -147,19 +155,11 @@ impl OclContext {
                 .collect(),
         };
 
-        let cache_hash = compute_device_hash(
-            &device_name,
-            &driver_version,
-            GEMM_KERNEL_SOURCE,
-            GEMM_BUILD_OPTIONS,
-        );
-        let program = load_or_build_program(
-            &context,
-            &device,
-            GEMM_KERNEL_SOURCE,
-            GEMM_BUILD_OPTIONS,
-            cache_hash,
-        )?;
+        let full_source = format!("{GEMM_KERNEL_SOURCE}\n{PREFILL_KERNEL_SOURCE}");
+        let cache_hash =
+            compute_device_hash(&device_name, &driver_version, &full_source, BUILD_OPTIONS);
+        let program =
+            load_or_build_program(&context, &device, &full_source, BUILD_OPTIONS, cache_hash)?;
 
         let kernel_portable = Kernel::create(&program, "gemm_q4_0_f16_portable")
             .map_err(|e| OclError::Driver(format!("clCreateKernel portable: {e}")))?;
@@ -169,6 +169,21 @@ impl OclContext {
         } else {
             None
         };
+
+        let kernel_rmsnorm = Kernel::create(&program, "rmsnorm_f16_f32w")
+            .map_err(|e| OclError::Driver(format!("clCreateKernel rmsnorm: {e}")))?;
+        let kernel_rope = Kernel::create(&program, "rope_f16")
+            .map_err(|e| OclError::Driver(format!("clCreateKernel rope: {e}")))?;
+        let kernel_kv_store = Kernel::create(&program, "kv_store_q8_0")
+            .map_err(|e| OclError::Driver(format!("clCreateKernel kv_store: {e}")))?;
+        let kernel_attention = Kernel::create(&program, "causal_gqa_attention_prefill")
+            .map_err(|e| OclError::Driver(format!("clCreateKernel attention: {e}")))?;
+        let kernel_silu_mul = Kernel::create(&program, "silu_mul_f16")
+            .map_err(|e| OclError::Driver(format!("clCreateKernel silu_mul: {e}")))?;
+        let kernel_add = Kernel::create(&program, "add_f16")
+            .map_err(|e| OclError::Driver(format!("clCreateKernel add: {e}")))?;
+        let kernel_logits = Kernel::create(&program, "logits_f16_output")
+            .map_err(|e| OclError::Driver(format!("clCreateKernel logits: {e}")))?;
 
         let active_variant = if kernel_intel.is_some() {
             KernelVariant::Intel
@@ -183,6 +198,13 @@ impl OclContext {
             program,
             kernel_intel,
             kernel_portable,
+            kernel_rmsnorm,
+            kernel_rope,
+            kernel_kv_store,
+            kernel_attention,
+            kernel_silu_mul,
+            kernel_add,
+            kernel_logits,
             active_variant,
             device_info,
         })
