@@ -386,7 +386,7 @@ mod tests {
         );
         assert_eq!(
             store.get_model_path("lfm2.5-230m-q4_0.gguf"),
-            Some(dummy_path.clone())
+            Some(dummy_path)
         );
         assert!(store.is_model_installed("lfm2.5-230m"));
 

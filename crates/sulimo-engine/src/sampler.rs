@@ -78,7 +78,7 @@ pub fn sample_token(
     }
 
     // 4. Softmax normalization
-    let max_logit = logits.iter().cloned().fold(f32::NEG_INFINITY, f32::max);
+    let max_logit = logits.iter().copied().fold(f32::NEG_INFINITY, f32::max);
     let mut sum_exp = 0.0f32;
     for logit in logits.iter_mut() {
         let e = (*logit - max_logit).exp();

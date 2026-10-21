@@ -43,27 +43,13 @@ impl ModelManagerDialog {
         let storage_group = PreferencesGroup::new();
         storage_group.set_title("Dedicated Model Storage Pool");
 
-        let used_bytes = store.borrow().total_storage_used_bytes().unwrap_or(0);
-        let storage_fraction =
-            (used_bytes as f64 / MAX_MODELS_STORAGE_BUDGET_BYTES as f64).clamp(0.0, 1.0);
-
-        let storage_row = ActionRow::builder()
-            .title(format!(
-                "SSD Storage Pool: {} / {} used",
-                format_bytes(used_bytes),
-                format_bytes(MAX_MODELS_STORAGE_BUDGET_BYTES)
-            ))
-            .subtitle(format!(
-                "{} free dedicated storage for models (8 GB Host RAM / 256 GB SSD)",
-                format_bytes(MAX_MODELS_STORAGE_BUDGET_BYTES.saturating_sub(used_bytes))
-            ))
-            .build();
-
+        let storage_row = ActionRow::new();
         let storage_progress = ProgressBar::builder()
-            .fraction(storage_fraction)
             .valign(gtk4::Align::Center)
             .hexpand(true)
             .build();
+
+        update_storage_gauge(&storage_row, &storage_progress, &store.borrow());
 
         storage_row.add_suffix(&storage_progress);
         storage_group.add(&storage_row);
@@ -189,27 +175,14 @@ fn update_row_actions<F>(
         let row_weak = row.downgrade();
         let action_box_weak = action_box.downgrade();
         let meta_clone = meta.clone();
-        let store_del = store.clone();
+        let store_del = store;
         let storage_row_clone = storage_row.clone();
         let storage_prog_clone = storage_progress.clone();
         let on_load_del = on_load_model;
 
         delete_btn.connect_clicked(move |_| {
             let _ = store_del.borrow().delete_model(&meta_clone.id);
-
-            // Update storage gauge
-            let used = store_del.borrow().total_storage_used_bytes().unwrap_or(0);
-            let frac = (used as f64 / MAX_MODELS_STORAGE_BUDGET_BYTES as f64).clamp(0.0, 1.0);
-            storage_prog_clone.set_fraction(frac);
-            storage_row_clone.set_title(&format!(
-                "SSD Storage Pool: {} / {} used",
-                format_bytes(used),
-                format_bytes(MAX_MODELS_STORAGE_BUDGET_BYTES)
-            ));
-            storage_row_clone.set_subtitle(&format!(
-                "{} free dedicated storage for models (8 GB Host RAM / 256 GB SSD)",
-                format_bytes(MAX_MODELS_STORAGE_BUDGET_BYTES.saturating_sub(used))
-            ));
+            update_storage_gauge(&storage_row_clone, &storage_prog_clone, &store_del.borrow());
 
             if let (Some(r), Some(ab)) = (row_weak.upgrade(), action_box_weak.upgrade()) {
                 update_row_actions(
@@ -235,7 +208,7 @@ fn update_row_actions<F>(
         let row_weak = row.downgrade();
         let action_box_weak = action_box.downgrade();
         let meta_clone = meta.clone();
-        let store_dl = store.clone();
+        let store_dl = store;
         let storage_row_clone = storage_row.clone();
         let storage_prog_clone = storage_progress.clone();
         let on_load_clone = on_load_model;
@@ -282,20 +255,17 @@ fn update_row_actions<F>(
 
             let meta_thread = meta_clone.clone();
             let store_thread = store_dl.borrow().clone();
-            let cancel_thread = cancel_flag.clone();
 
             thread::spawn(move || {
                 let downloader = ModelDownloader::new(store_thread);
                 let p_tx = prog_tx.clone();
-                let res = downloader.download(&meta_thread, cancel_thread, move |p| {
+                let res = downloader.download(&meta_thread, cancel_flag, move |p| {
                     let _ = p_tx.send(p);
                 });
                 let _ = done_tx.send(res);
             });
 
             // UI event listener on GTK main loop
-            let dl_prog_clone = dl_progress.clone();
-            let status_lbl_clone = status_label.clone();
             let row_ev = row_weak.clone();
             let ab_ev = action_box_weak.clone();
             let meta_ev = meta_clone.clone();
@@ -306,7 +276,7 @@ fn update_row_actions<F>(
 
             glib::spawn_future_local(async move {
                 while let Ok(progress) = prog_rx.recv_async().await {
-                    dl_prog_clone.set_fraction(progress.percent as f64);
+                    dl_progress.set_fraction(progress.percent as f64);
                     match progress.state {
                         DownloadState::Downloading => {
                             let speed = if progress.speed_bps >= 1_000_000.0 {
@@ -318,10 +288,10 @@ fn update_row_actions<F>(
                                 Some(s) => format!(" • {s}s left"),
                                 None => String::new(),
                             };
-                            status_lbl_clone.set_text(&format!("{speed}{eta}"));
+                            status_label.set_text(&format!("{speed}{eta}"));
                         }
                         DownloadState::VerifyingChecksum => {
-                            status_lbl_clone.set_text("Verifying SHA-256...");
+                            status_label.set_text("Verifying SHA-256...");
                         }
                         _ => {}
                     }
@@ -329,45 +299,20 @@ fn update_row_actions<F>(
 
                 if let Ok(res) = done_rx.recv_async().await {
                     if let (Some(r), Some(ab_up)) = (row_ev.upgrade(), ab_ev.upgrade()) {
-                        // Refresh storage pool numbers
-                        let used = store_ev.borrow().total_storage_used_bytes().unwrap_or(0);
-                        let frac =
-                            (used as f64 / MAX_MODELS_STORAGE_BUDGET_BYTES as f64).clamp(0.0, 1.0);
-                        s_prog_ev.set_fraction(frac);
-                        s_row_ev.set_title(&format!(
-                            "SSD Storage Pool: {} / {} used",
-                            format_bytes(used),
-                            format_bytes(MAX_MODELS_STORAGE_BUDGET_BYTES)
-                        ));
-                        s_row_ev.set_subtitle(&format!(
-                            "{} free dedicated storage for models (8 GB Host RAM / 256 GB SSD)",
-                            format_bytes(MAX_MODELS_STORAGE_BUDGET_BYTES.saturating_sub(used))
-                        ));
+                        update_storage_gauge(&s_row_ev, &s_prog_ev, &store_ev.borrow());
 
-                        match res {
-                            Ok(path) => {
-                                update_row_actions(
-                                    &r,
-                                    &ab_up,
-                                    &meta_ev,
-                                    store_ev.clone(),
-                                    &s_row_ev,
-                                    &s_prog_ev,
-                                    on_load_ev.clone(),
-                                );
-                                on_load_ev(path);
-                            }
-                            Err(_) => {
-                                update_row_actions(
-                                    &r,
-                                    &ab_up,
-                                    &meta_ev,
-                                    store_ev.clone(),
-                                    &s_row_ev,
-                                    &s_prog_ev,
-                                    on_load_ev.clone(),
-                                );
-                            }
+                        update_row_actions(
+                            &r,
+                            &ab_up,
+                            &meta_ev,
+                            store_ev,
+                            &s_row_ev,
+                            &s_prog_ev,
+                            on_load_ev.clone(),
+                        );
+
+                        if let Ok(path) = res {
+                            on_load_ev(path);
                         }
                     }
                 }
@@ -376,4 +321,23 @@ fn update_row_actions<F>(
 
         action_box.append(&download_btn);
     }
+}
+
+fn update_storage_gauge(
+    storage_row: &ActionRow,
+    storage_progress: &ProgressBar,
+    store: &sulimo_core::model_manager::ModelStore,
+) {
+    let used = store.total_storage_used_bytes().unwrap_or(0);
+    let frac = (used as f64 / MAX_MODELS_STORAGE_BUDGET_BYTES as f64).clamp(0.0, 1.0);
+    storage_progress.set_fraction(frac);
+    storage_row.set_title(&format!(
+        "SSD Storage Pool: {} / {} used",
+        format_bytes(used),
+        format_bytes(MAX_MODELS_STORAGE_BUDGET_BYTES)
+    ));
+    storage_row.set_subtitle(&format!(
+        "{} free dedicated storage for models (8 GB Host RAM / 256 GB SSD)",
+        format_bytes(MAX_MODELS_STORAGE_BUDGET_BYTES.saturating_sub(used))
+    ));
 }

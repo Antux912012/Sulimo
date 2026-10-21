@@ -24,11 +24,10 @@ fn test_mm4_async_download_worker_channels() {
     // Tests that background download progress channels work without blocking UI thread
     let (prog_tx, prog_rx) = flume::unbounded::<u64>();
     let cancel_flag = Arc::new(AtomicBool::new(false));
-    let cancel_thread = cancel_flag.clone();
 
     let worker = thread::spawn(move || {
         for bytes in (0..=1000).step_by(200) {
-            if cancel_thread.load(Ordering::Relaxed) {
+            if cancel_flag.load(Ordering::Relaxed) {
                 break;
             }
             let _ = prog_tx.send(bytes);
@@ -53,9 +52,8 @@ fn test_mm4_model_manager_dialog_instantiation_if_display() {
     // If running in an environment with display, verify adw::init and dialog instantiation
     if libadwaita::init().is_ok() {
         let loaded_path = Arc::new(std::sync::Mutex::new(None));
-        let loaded_clone = loaded_path.clone();
         let _dialog = sulimo_gtk::ui::ModelManagerDialog::new(None, move |p| {
-            *loaded_clone.lock().unwrap() = Some(p);
+            *loaded_path.lock().unwrap() = Some(p);
         });
     }
 }

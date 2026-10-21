@@ -580,7 +580,7 @@ fn test_m3b_full_layer_prefill_and_zero_spin_proof() {
         unsafe { std::slice::from_raw_parts(logits_slice.as_ptr() as *const f32, vocab_size) };
 
     // --- CPU Oracle Reference Computation ---
-    let mut cpu_x = initial_x_cpu.clone();
+    let mut cpu_x = initial_x_cpu;
 
     let mut cpu_k_cache = vec![vec![0u8; kv_layer_bytes]; block_count];
     let mut cpu_v_cache = vec![vec![0u8; kv_layer_bytes]; block_count];

@@ -256,14 +256,12 @@ impl SulimoWindow {
         // 10. Asynchronous Event Consumer Loop on GTK Main Context
         let chat_view_ev = Rc::clone(&chat_view);
         let telemetry_bar_ev = Rc::clone(&telemetry_bar);
-        let window_title_ev = window_title.clone();
-        let toast_overlay_ev = toast_overlay.clone();
 
         glib::spawn_future_local(async move {
             while let Ok(event) = event_rx.recv_async().await {
                 match event {
                     Event::Loading(msg) => {
-                        window_title_ev.set_subtitle(&msg);
+                        window_title.set_subtitle(&msg);
                     }
                     Event::Loaded {
                         model_name,
@@ -271,19 +269,19 @@ impl SulimoWindow {
                         ctx_len,
                     } => {
                         let planned_gb = (planned_bytes as f64) / (1024.0 * 1024.0 * 1024.0);
-                        window_title_ev.set_subtitle(&format!("{model_name} ({ctx_len} ctx)"));
+                        window_title.set_subtitle(&format!("{model_name} ({ctx_len} ctx)"));
 
                         let toast = Toast::new(&format!(
                             "Ready: {model_name} loaded ({planned_gb:.2} GB arena memory)"
                         ));
                         toast.set_timeout(3);
-                        toast_overlay_ev.add_toast(toast);
+                        toast_overlay.add_toast(toast);
                     }
                     Event::Unloaded => {
-                        window_title_ev.set_subtitle("No model loaded");
+                        window_title.set_subtitle("No model loaded");
                         let toast = Toast::new("Model unloaded.");
                         toast.set_timeout(2);
-                        toast_overlay_ev.add_toast(toast);
+                        toast_overlay.add_toast(toast);
                     }
                     Event::Token(tok) => {
                         chat_view_ev.stream_token(&tok);
@@ -315,7 +313,7 @@ impl SulimoWindow {
                             stats.prefill_tok_per_sec
                         ));
                         toast.set_timeout(3);
-                        toast_overlay_ev.add_toast(toast);
+                        toast_overlay.add_toast(toast);
                     }
                     Event::Error(err) => {
                         chat_view_ev.flush_coalescer();
@@ -323,7 +321,7 @@ impl SulimoWindow {
 
                         let toast = Toast::new(&err);
                         toast.set_timeout(5);
-                        toast_overlay_ev.add_toast(toast);
+                        toast_overlay.add_toast(toast);
                     }
                 }
             }

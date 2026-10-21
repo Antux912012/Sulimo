@@ -302,11 +302,10 @@ pub fn download_model_cli(store: &ModelStore, model_id_or_name: &str) -> Result<
     // Monitor thread synchronizing CLI_CANCEL_FLAG to cancel_flag
     let monitor_running = Arc::new(AtomicBool::new(true));
     let m_run_clone = monitor_running.clone();
-    let c_flag_thread = cancel_flag.clone();
     let _monitor_thread = std::thread::spawn(move || {
         while m_run_clone.load(Ordering::Relaxed) {
             if CLI_CANCEL_FLAG.load(Ordering::Relaxed) {
-                c_flag_thread.store(true, Ordering::SeqCst);
+                cancel_flag.store(true, Ordering::SeqCst);
                 break;
             }
             std::thread::sleep(std::time::Duration::from_millis(50));

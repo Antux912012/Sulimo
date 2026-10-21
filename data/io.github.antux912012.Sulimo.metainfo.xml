@@ -36,6 +36,15 @@
     <name>Antonio</name>
   </developer>
   <releases>
+    <release version="0.3.0" date="2026-10-21">
+      <description>
+        <p>
+          Version 0.3.0 major release: integrated Model Hub and dedicated 30 GB SSD model pool,
+          support for Qwen 2.5, Google Gemma 2, Liquid AI LFM, and OpenBMB MiniCPM architectures,
+          resumable cryptographic streaming downloader, and Libadwaita Model Manager dialog.
+        </p>
+      </description>
+    </release>
     <release version="0.2.0" date="2026-10-21">
       <description>
         <p>

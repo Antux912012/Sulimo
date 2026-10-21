@@ -513,7 +513,7 @@ mod tests {
     fn test_full_download_sha256_match_and_rename() {
         let temp_dir = TempTestDir::new("full_download");
         let store = ModelStore::new(Some(temp_dir.0.clone())).unwrap();
-        let downloader = ModelDownloader::new(store.clone());
+        let downloader = ModelDownloader::new(store);
 
         static PAYLOAD: &[u8] = b"sulimo_streaming_test_model_payload_1234567890";
         let payload_hash = format!("{:x}", Sha256::digest(PAYLOAD));
@@ -562,7 +562,7 @@ mod tests {
     fn test_corrupted_payload_checksum_mismatch_rejected() {
         let temp_dir = TempTestDir::new("corrupt_download");
         let store = ModelStore::new(Some(temp_dir.0.clone())).unwrap();
-        let downloader = ModelDownloader::new(store.clone());
+        let downloader = ModelDownloader::new(store);
 
         static CORRUPT_PAYLOAD: &[u8] = b"corrupted_bad_payload";
         let hit_counter = Arc::new(AtomicUsize::new(0));
@@ -605,7 +605,7 @@ mod tests {
     fn test_resumable_download() {
         let temp_dir = TempTestDir::new("resume_download");
         let store = ModelStore::new(Some(temp_dir.0.clone())).unwrap();
-        let downloader = ModelDownloader::new(store.clone());
+        let downloader = ModelDownloader::new(store);
 
         static FULL_PAYLOAD: &[u8] = b"abcdefghijklmnopqrstuvwxyz0123456789";
         let full_hash = format!("{:x}", Sha256::digest(FULL_PAYLOAD));
@@ -650,7 +650,7 @@ mod tests {
     fn test_cooperative_cancellation() {
         let temp_dir = TempTestDir::new("cancel_download");
         let store = ModelStore::new(Some(temp_dir.0.clone())).unwrap();
-        let downloader = ModelDownloader::new(store.clone());
+        let downloader = ModelDownloader::new(store);
 
         static BIG_PAYLOAD: &[u8] = &[0xAA; 1024 * 1024]; // 1 MiB
         let hit_counter = Arc::new(AtomicUsize::new(0));
@@ -689,7 +689,7 @@ mod tests {
     fn test_quota_pre_flight_rejection() {
         let temp_dir = TempTestDir::new("quota_reject");
         let store = ModelStore::new(Some(temp_dir.0.clone())).unwrap();
-        let downloader = ModelDownloader::new(store.clone());
+        let downloader = ModelDownloader::new(store);
 
         // Oversized model exceeding 30.0 GB quota
         let meta = ModelMetadata {

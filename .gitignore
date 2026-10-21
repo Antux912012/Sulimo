@@ -4,6 +4,8 @@ build/
 bin/
 lib/
 *.deb
+*.flatpak
+.flatpak-builder/
 *.o
 *.a
 *.so
