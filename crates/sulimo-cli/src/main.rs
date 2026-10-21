@@ -5,6 +5,8 @@
 //! - `inspect <model.gguf>`: Inspects GGUF metadata, architecture, tensor inventory, and budget plan.
 //! - `load <model.gguf> [--ctx N]`: Executes streaming model load into static arena, asserting $ZCOPY and measuring VmHWM.
 
+mod interactive;
+
 use anyhow::{bail, Context, Result};
 use std::env;
 use std::path::Path;
@@ -19,22 +21,30 @@ fn print_usage() {
     eprintln!(
         "\
 Súlimo CLI (v{})
-Local LLM inference engine for Intel Gen8–10 hardware
+Local LLM inference engine & interactive assistant for Intel Gen8–10 hardware
 
 USAGE:
-    sulimo-cli <SUBCOMMAND> [OPTIONS] [ARGS]
+    sulimo-cli [SUBCOMMAND | MODEL.gguf] [OPTIONS]
+
+INTERACTIVE MODE:
+    sulimo-cli                  Launch interactive Antigravity-style chat REPL
+    sulimo-cli chat [MODEL.gguf] Launch chat session with specified model
+    sulimo-cli MODEL.gguf       Launch chat session directly with model
 
 SUBCOMMANDS:
+    chat [MODEL.gguf]     Interactive conversation session with slash commands
     probe                 Probe CPU, GPU, and system memory capabilities
     inspect <MODEL.gguf>  Inspect GGUF metadata, architecture, and memory budget plan
     load <MODEL.gguf>     Load model into static arena and assert $ZCOPY invariants
-    run                   Execute inference on a GGUF model (M2+)
-    bench                 Run benchmarks across execution tiers (M6+)
+    run <MODEL.gguf>      Execute single-prompt inference on a GGUF model
+    bench [MODEL.gguf]    Run benchmarks across execution tiers (prefill, decode, RC6)
     help                  Print this message or the help of the given subcommand
 
 OPTIONS:
-    --json                Output machine-readable JSON (valid for 'probe')
-    --ctx <N>             Override context length for memory budget / load
+    -p, --prompt <TEXT>   Run non-interactive prompt and print streaming response
+    --json                Output machine-readable JSON (valid for 'probe' and 'bench')
+    --ctx <N>             Override context length for memory budget / load / chat
+    -t, --threads <N>     Override number of physical CPU decode threads
     -h, --help            Print help information
 ",
         env!("CARGO_PKG_VERSION")
@@ -74,12 +84,107 @@ fn main() -> Result<()> {
         raw_args.into_iter().skip(1).collect()
     };
 
-    if args.is_empty() || args.iter().any(|a| a == "-h" || a == "--help") {
+    if args.is_empty() {
+        return interactive::InteractiveSession::new(None, None, None).run();
+    }
+
+    if args.iter().any(|a| a == "-h" || a == "--help") {
         print_usage();
         return Ok(());
     }
 
     match args[0].as_str() {
+        "chat" => {
+            let mut model_path = None;
+            let mut requested_ctx = None;
+            let mut threads = None;
+            let mut i = 1;
+            while i < args.len() {
+                match args[i].as_str() {
+                    "--ctx" => {
+                        if i + 1 < args.len() {
+                            requested_ctx = Some(args[i + 1].parse()?);
+                            i += 1;
+                        }
+                    }
+                    "-t" | "--threads" => {
+                        if i + 1 < args.len() {
+                            threads = Some(args[i + 1].parse()?);
+                            i += 1;
+                        }
+                    }
+                    p if !p.starts_with('-') && model_path.is_none() => {
+                        model_path = Some(Path::new(p));
+                    }
+                    _ => {}
+                }
+                i += 1;
+            }
+            interactive::InteractiveSession::new(model_path, requested_ctx, threads).run()?;
+        }
+        "-p" | "--prompt" | "--print" => {
+            let prompt = if args.len() > 1 {
+                args[1].clone()
+            } else {
+                bail!("Missing prompt text. Usage: sulimo-cli -p \"<prompt>\"");
+            };
+            let mut model_path = None;
+            let mut requested_ctx = None;
+            let mut threads = None;
+            let mut greedy = false;
+            let mut temperature = 0.7f32;
+            let mut max_tokens = 64usize;
+            let mut i = 2;
+            while i < args.len() {
+                match args[i].as_str() {
+                    "-m" | "--model" => {
+                        if i + 1 < args.len() {
+                            model_path = Some(args[i + 1].clone());
+                            i += 1;
+                        }
+                    }
+                    "--ctx" => {
+                        if i + 1 < args.len() {
+                            requested_ctx = Some(args[i + 1].parse()?);
+                            i += 1;
+                        }
+                    }
+                    "-t" | "--threads" => {
+                        if i + 1 < args.len() {
+                            threads = Some(args[i + 1].parse()?);
+                            i += 1;
+                        }
+                    }
+                    "--max-tokens" | "-n" => {
+                        if i + 1 < args.len() {
+                            max_tokens = args[i + 1].parse()?;
+                            i += 1;
+                        }
+                    }
+                    "--temp" => {
+                        if i + 1 < args.len() {
+                            temperature = args[i + 1].parse()?;
+                            i += 1;
+                        }
+                    }
+                    "--greedy" => {
+                        greedy = true;
+                    }
+                    _ => {}
+                }
+                i += 1;
+            }
+            let target = model_path
+                .map(std::path::PathBuf::from)
+                .unwrap_or_else(|| sulimo_engine::bench::create_synthetic_benchmark_model(2048));
+            let params = sulimo_engine::SamplingParams {
+                temperature,
+                greedy,
+                max_tokens,
+                ..Default::default()
+            };
+            run_inference(&target, &prompt, requested_ctx, threads, &params)?;
+        }
         "probe" => {
             let json_mode = args.iter().any(|a| a == "--json");
             let report = CapabilityReport::probe()?;
@@ -228,6 +333,10 @@ fn main() -> Result<()> {
                 args[0]
             );
             std::process::exit(1);
+        }
+        other if other.ends_with(".gguf") || Path::new(other).is_file() => {
+            let model_path = Path::new(other);
+            interactive::InteractiveSession::new(Some(model_path), None, None).run()?;
         }
         other => {
             eprintln!("Unknown subcommand: '{other}'");
