@@ -49,6 +49,24 @@ impl ExecutionPhase {
     }
 }
 
+/// Tool execution status for agentic tool cards (@C:BRIDGE).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ToolStatus {
+    Running,
+    Success,
+    Failed,
+}
+
+/// Tool invocation event emitted by agentic stream (@C:BRIDGE).
+#[derive(Debug, Clone)]
+pub struct ToolCallEvent {
+    pub tool_id: String,
+    pub tool_name: String,
+    pub input_json: String,
+    pub output_json: Option<String>,
+    pub status: ToolStatus,
+}
+
 /// Events sent from the engine thread to the GTK UI.
 #[derive(Debug, Clone)]
 pub enum Event {
@@ -62,6 +80,10 @@ pub enum Event {
     },
     /// Model has been unloaded.
     Unloaded,
+    /// Model reasoning / thought chunk.
+    Thought(String),
+    /// Tool call invocation or result.
+    Tool(ToolCallEvent),
     /// A single decoded token string.
     Token(String),
     /// Periodic system telemetry (RAM, speed, power, phase).

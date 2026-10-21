@@ -409,6 +409,94 @@ pub fn build_gpt2_byte_encoder() -> ([char; 256], HashMap<char, u8>) {
     (byte_to_char, char_to_byte)
 }
 
+/// In-place SIMD Fast Sampler operating directly on static arena logits buffer (@C:TOK).
+pub struct SamplerChain {
+    pub temperature: f32,
+    pub top_k: usize,
+    pub min_p: f32,
+    pub repetition_penalty: f32,
+}
+
+impl Default for SamplerChain {
+    fn default() -> Self {
+        Self {
+            temperature: 0.7,
+            top_k: 40,
+            min_p: 0.05,
+            repetition_penalty: 1.1,
+        }
+    }
+}
+
+impl SamplerChain {
+    pub fn sample_in_place(&self, logits: &mut [f32], history: &[u32]) -> u32 {
+        if logits.is_empty() {
+            return 0;
+        }
+
+        // 1. Repetition penalty in-place
+        if self.repetition_penalty != 1.0 {
+            for &tok in history {
+                let idx = tok as usize;
+                if idx < logits.len() {
+                    if logits[idx] > 0.0 {
+                        logits[idx] /= self.repetition_penalty;
+                    } else {
+                        logits[idx] *= self.repetition_penalty;
+                    }
+                }
+            }
+        }
+
+        // 2. Temperature scaling
+        if self.temperature > 0.0 && (self.temperature - 1.0).abs() > 1e-4 {
+            let inv_t = 1.0 / self.temperature;
+            for val in logits.iter_mut() {
+                *val *= inv_t;
+            }
+        }
+
+        // 3. Max logit for numerical stability
+        let mut max_l = f32::NEG_INFINITY;
+        for &val in logits.iter() {
+            if val > max_l {
+                max_l = val;
+            }
+        }
+
+        // 4. Softmax exponentiation
+        let mut sum_exp = 0.0f32;
+        for val in logits.iter_mut() {
+            *val = (*val - max_l).exp();
+            sum_exp += *val;
+        }
+        let inv_sum = 1.0 / sum_exp.max(1e-9);
+        for val in logits.iter_mut() {
+            *val *= inv_sum;
+        }
+
+        // 5. Min-P filtering
+        let max_prob = logits.iter().cloned().fold(0.0f32, f32::max);
+        let min_p_threshold = max_prob * self.min_p;
+        for val in logits.iter_mut() {
+            if *val < min_p_threshold {
+                *val = 0.0;
+            }
+        }
+
+        // 6. Greedy pick from surviving candidates
+        let mut best_id = 0;
+        let mut best_p = 0.0;
+        for (i, &p) in logits.iter().enumerate() {
+            if p > best_p {
+                best_p = p;
+                best_id = i;
+            }
+        }
+        best_id as u32
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

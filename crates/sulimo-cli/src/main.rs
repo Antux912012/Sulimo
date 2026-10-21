@@ -6,6 +6,7 @@
 //! - `load <model.gguf> [--ctx N]`: Executes streaming model load into static arena, asserting $ZCOPY and measuring VmHWM.
 
 mod interactive;
+pub mod logo;
 mod models_cli;
 
 use anyhow::{bail, Context, Result};

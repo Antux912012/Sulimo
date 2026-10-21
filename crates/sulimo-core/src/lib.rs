@@ -4,9 +4,13 @@
 //! 5.2 GB memory budget planning ($MEM<8G), Q4_0 SoA block repacking,
 //! and streaming zero-copy model loading.
 
+pub mod agent;
 pub mod arena;
 pub mod budget;
+pub mod colibri;
+pub mod events;
 pub mod gguf;
+pub mod graph;
 pub mod kv_cache;
 pub mod loader;
 pub mod model_config;

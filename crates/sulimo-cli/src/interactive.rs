@@ -121,18 +121,7 @@ impl InteractiveSession {
     }
 
     fn print_welcome(&self) {
-        println!("\x1b[1;38;5;51m");
-        println!("  ╭────────────────────────────────────────────────────────────────────────╮");
-        println!("  │   ____        _ _                 (Arda's Breath v0.3.0)               │");
-        println!("  │  / ___| _   _| (_)_ __ ___   ___  Antigravity-Style Local CLI          │");
-        println!(
-            "  │  \\___ \\| | | | | | '_ ` _ \\ / _ \\ Gen8–10 Legacy Tier Inference        │"
-        );
-        println!("  │   ___) | |_| | | | | | | | | (_) | Hybrid iGPU OpenCL FP16 + AVX2 CPU  │");
-        println!("  │  |____/ \\__,_|_|_|_| |_| |_|\\___/  5.2 GB Unified RAM Budget Ceiling   │");
-        println!(
-            "  ╰────────────────────────────────────────────────────────────────────────╯\x1b[0m"
-        );
+        println!("{}", crate::logo::SULIMO_NORD_LOGO);
 
         if let Ok(report) = CapabilityReport::probe() {
             let cpu = &report.cpu.model_name;
@@ -144,11 +133,11 @@ impl InteractiveSession {
                 sulimo_ocl::OclProbeResult::Unavailable { .. } => "None (CPU Only)".to_string(),
             };
             println!(
-                "  \x1b[1;38;5;141m[Host]\x1b[0m {} ({} physical cores)  │  \x1b[1;38;5;141m[GPU]\x1b[0m {}",
+                "  \x1b[1;38;2;136;192;208m[Host]\x1b[0m \x1b[38;2;216;222;233m{} ({} cores)\x1b[0m  \x1b[38;2;76;86;106m│\x1b[0m  \x1b[1;38;2;136;192;208m[GPU]\x1b[0m \x1b[38;2;216;222;233m{}\x1b[0m",
                 cpu, cores, gpu
             );
             println!(
-                "  \x1b[1;38;5;141m[Tier]\x1b[0m {}  │  \x1b[1;38;5;141m[RAM Budget]\x1b[0m 5.20 GiB Unified Ceiling",
+                "  \x1b[1;38;2;129;161;193m[Tier]\x1b[0m \x1b[38;2;216;222;233m{}\x1b[0m  \x1b[38;2;76;86;106m│\x1b[0m  \x1b[1;38;2;136;192;208m[RAM Budget]\x1b[0m \x1b[38;2;216;222;233m5.20 GiB Unified Ceiling\x1b[0m",
                 report.selected_tier
             );
         }

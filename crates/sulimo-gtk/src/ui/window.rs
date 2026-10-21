@@ -283,6 +283,20 @@ impl SulimoWindow {
                         toast.set_timeout(2);
                         toast_overlay.add_toast(toast);
                     }
+                    Event::Thought(thought) => {
+                        chat_view_ev.stream_token(&format!("\n> *{thought}*\n"));
+                    }
+                    Event::Tool(tool) => {
+                        let out_str = tool
+                            .output_json
+                            .as_deref()
+                            .map(|o| format!(" -> {o}"))
+                            .unwrap_or_default();
+                        chat_view_ev.stream_token(&format!(
+                            "\n`[{}: {}{}]`\n",
+                            tool.tool_name, tool.input_json, out_str
+                        ));
+                    }
                     Event::Token(tok) => {
                         chat_view_ev.stream_token(&tok);
                     }

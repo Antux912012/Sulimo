@@ -1,0 +1,29 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" width="128" height="128">
+  <defs>
+    <!-- Nord Polar Night Vertical Gradient -->
+    <linearGradient id="bgNord" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#3B4252" />
+      <stop offset="100%" stop-color="#2E3440" />
+    </linearGradient>
+
+    <!-- Drop Shadow -->
+    <filter id="dropShadow" x="-10%" y="-10%" width="120%" height="120%">
+      <feDropShadow dx="0" dy="4" stdDeviation="4" flood-color="#000000" flood-opacity="0.35" />
+    </filter>
+  </defs>
+
+  <!-- Squircle Base with Nord Stroke Border -->
+  <rect x="4" y="4" width="120" height="120" rx="28" ry="28" fill="url(#bgNord)" stroke="#4C566A" stroke-width="1.5" />
+
+  <!-- Dynamic Wind / Arda Breath Vectors ($NORD Palette) -->
+  <g filter="url(#dropShadow)">
+    <!-- Top Wind Vector: S2 (100% Bright) -->
+    <path d="M 36 44 C 50 44, 75 44, 88 44 C 98 44, 102 36, 96 30 C 90 24, 78 28, 76 38 C 74 48, 86 64, 92 72" fill="none" stroke="#ECEFF4" stroke-width="8" stroke-linecap="round" stroke-opacity="1.0" />
+    
+    <!-- Middle Wind Vector: S0 (72% Opacity) -->
+    <path d="M 32 64 C 45 64, 68 64, 78 64 C 86 64, 92 70, 88 78 C 84 84, 72 82, 70 74 C 68 66, 78 54, 84 48" fill="none" stroke="#D8DEE9" stroke-width="8" stroke-linecap="round" stroke-opacity="0.72" />
+    
+    <!-- Bottom Wind Vector: N3 (45% Opacity) -->
+    <path d="M 36 84 C 48 84, 64 84, 72 84 C 80 84, 84 90, 80 96 C 76 102, 64 100, 62 92" fill="none" stroke="#4C566A" stroke-width="8" stroke-linecap="round" stroke-opacity="0.45" />
+  </g>
+</svg>

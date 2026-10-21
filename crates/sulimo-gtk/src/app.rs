@@ -10,14 +10,33 @@ use libadwaita as adw;
 const APP_ID: &str = "io.github.antux912012.Sulimo";
 
 const APP_CSS: &str = r#"
+/* $NORD Palette Definitions */
+@define-color nord0 #2E3440;
+@define-color nord1 #3B4252;
+@define-color nord2 #434C5E;
+@define-color nord3 #4C566A;
+@define-color nord4 #D8DEE9;
+@define-color nord5 #E5E9F0;
+@define-color nord6 #ECEFF4;
+@define-color nord7 #8FBCBB;
+@define-color nord8 #88C0D0;
+@define-color nord9 #81A1C1;
+@define-color nord10 #5E81AC;
+
+window {
+    background-color: @nord0;
+    color: @nord4;
+}
+
 .arda-telemetry-bar {
-    border-top: 1px solid alpha(@borders, 0.4);
-    background-color: alpha(@window_bg_color, 0.85);
+    border-top: 1px solid @nord3;
+    background-color: @nord1;
+    color: @nord4;
 }
 
 .phase-idle {
-    background-color: alpha(@window_fg_color, 0.1);
-    color: @window_fg_color;
+    background-color: alpha(@nord3, 0.4);
+    color: @nord5;
     border-radius: 9999px;
     padding: 2px 10px;
     font-weight: 600;
@@ -25,9 +44,9 @@ const APP_CSS: &str = r#"
 }
 
 .phase-prefill {
-    background-color: alpha(#3584e4, 0.2);
-    color: #3584e4;
-    border: 1px solid #3584e4;
+    background-color: alpha(@nord8, 0.2);
+    color: @nord8;
+    border: 1px solid @nord8;
     border-radius: 9999px;
     padding: 2px 10px;
     font-weight: 600;
@@ -35,9 +54,9 @@ const APP_CSS: &str = r#"
 }
 
 .phase-decode {
-    background-color: alpha(#2ec27e, 0.2);
-    color: #2ec27e;
-    border: 1px solid #2ec27e;
+    background-color: alpha(@nord9, 0.2);
+    color: @nord9;
+    border: 1px solid @nord9;
     border-radius: 9999px;
     padding: 2px 10px;
     font-weight: 600;
@@ -45,8 +64,9 @@ const APP_CSS: &str = r#"
 }
 
 .user-bubble {
-    background-color: alpha(@accent_color, 0.18);
-    border: 1px solid alpha(@accent_color, 0.4);
+    background-color: @nord2;
+    border: 1px solid @nord3;
+    color: @nord6;
     border-radius: 16px;
     border-bottom-right-radius: 4px;
     padding: 12px 18px;
@@ -54,8 +74,9 @@ const APP_CSS: &str = r#"
 }
 
 .assistant-bubble {
-    background-color: alpha(@card_bg_color, 0.95);
-    border: 1px solid alpha(@borders, 0.5);
+    background-color: @nord1;
+    border: 1px solid @nord3;
+    color: @nord4;
     border-radius: 16px;
     border-bottom-left-radius: 4px;
     padding: 14px 20px;
@@ -63,10 +84,14 @@ const APP_CSS: &str = r#"
 }
 
 .chat-input-bar {
-    background-color: alpha(@window_bg_color, 0.9);
+    background-color: @nord0;
+    border-top: 1px solid @nord2;
 }
 
 .chat-input-field {
+    background-color: @nord1;
+    color: @nord6;
+    border: 1px solid @nord3;
     border-radius: 14px;
     font-size: 1.05em;
 }
