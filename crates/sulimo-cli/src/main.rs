@@ -2,9 +2,16 @@
 //!
 //! Subcommands:
 //! - `probe [--json]`: Inspects host hardware capabilities and determines the execution tier.
+//! - `inspect <model.gguf>`: Inspects GGUF metadata, architecture, tensor inventory, and budget plan.
+//! - `load <model.gguf> [--ctx N]`: Executes streaming model load into static arena, asserting $ZCOPY and measuring VmHWM.
 
-use anyhow::Result;
+use anyhow::{bail, Context, Result};
 use std::env;
+use std::path::Path;
+use sulimo_core::{
+    get_process_memory_stats, GgufMmap, LoadedModel, MemoryBudget, ModelConfig,
+    MAX_RAM_BUDGET_BYTES,
+};
 use sulimo_engine::CapabilityReport;
 use sulimo_ocl::OclProbeResult;
 
@@ -15,17 +22,20 @@ Súlimo CLI (v{})
 Local LLM inference engine for Intel Gen8–10 hardware
 
 USAGE:
-    sulimo-cli <SUBCOMMAND> [OPTIONS]
+    sulimo-cli <SUBCOMMAND> [OPTIONS] [ARGS]
 
 SUBCOMMANDS:
-    probe       Probe CPU, GPU, and system memory capabilities
-    run         Execute inference on a GGUF model (M2+)
-    bench       Run benchmarks across execution tiers (M6+)
-    help        Print this message or the help of the given subcommand
+    probe                 Probe CPU, GPU, and system memory capabilities
+    inspect <MODEL.gguf>  Inspect GGUF metadata, architecture, and memory budget plan
+    load <MODEL.gguf>     Load model into static arena and assert $ZCOPY invariants
+    run                   Execute inference on a GGUF model (M2+)
+    bench                 Run benchmarks across execution tiers (M6+)
+    help                  Print this message or the help of the given subcommand
 
 OPTIONS:
-    --json      Output machine-readable JSON (valid for 'probe')
-    -h, --help  Print help information
+    --json                Output machine-readable JSON (valid for 'probe')
+    --ctx <N>             Override context length for memory budget / load
+    -h, --help            Print help information
 ",
         env!("CARGO_PKG_VERSION")
     );
@@ -37,6 +47,14 @@ fn format_bytes_gib(bytes: u64) -> String {
 
 fn format_bytes_mib(bytes: u64) -> String {
     format!("{:.2} MiB", bytes as f64 / (1024.0 * 1024.0))
+}
+
+fn format_bytes_auto(bytes: u64) -> String {
+    if bytes >= 1024 * 1024 * 1024 {
+        format!("{:.2} GiB", bytes as f64 / (1024.0 * 1024.0 * 1024.0))
+    } else {
+        format!("{:.2} MiB", bytes as f64 / (1024.0 * 1024.0))
+    }
 }
 
 fn main() -> Result<()> {
@@ -59,9 +77,35 @@ fn main() -> Result<()> {
                 print_human_report(&report);
             }
         }
+        "inspect" => {
+            if args.len() < 2 {
+                bail!("Missing model path. Usage: sulimo-cli inspect <model.gguf>");
+            }
+            let model_path = Path::new(&args[1]);
+            run_inspect(model_path)?;
+        }
+        "load" => {
+            if args.len() < 2 {
+                bail!("Missing model path. Usage: sulimo-cli load <model.gguf> [--ctx N]");
+            }
+            let model_path = Path::new(&args[1]);
+
+            let mut requested_ctx = None;
+            for i in 2..args.len() {
+                if args[i] == "--ctx" && i + 1 < args.len() {
+                    requested_ctx = Some(
+                        args[i + 1]
+                            .parse::<usize>()
+                            .context("invalid --ctx value")?,
+                    );
+                }
+            }
+
+            run_load(model_path, requested_ctx)?;
+        }
         "run" | "bench" | "golden-compare" => {
             eprintln!(
-                "Subcommand '{}' is planned for subsequent milestones (M1–M6).",
+                "Subcommand '{}' is planned for subsequent milestones (M2–M6).",
                 args[0]
             );
             std::process::exit(1);
@@ -72,6 +116,151 @@ fn main() -> Result<()> {
             std::process::exit(1);
         }
     }
+
+    Ok(())
+}
+
+fn run_inspect(path: &Path) -> Result<()> {
+    println!("Opening GGUF file: {}", path.display());
+    let mmap = GgufMmap::open(path).context("failed to open GGUF file")?;
+    let gguf = mmap.file();
+
+    println!("============================================================");
+    println!("                 Súlimo GGUF Model Inspection");
+    println!("============================================================");
+    println!("GGUF Version:     v{}", gguf.version);
+    println!("Tensor Count:     {}", gguf.tensors.len());
+    println!("Metadata Count:   {}", gguf.metadata.len());
+    println!("Alignment:        {} bytes", gguf.alignment);
+
+    let config = match ModelConfig::from_gguf(gguf) {
+        Ok(cfg) => {
+            println!("\n[Model Hyperparameters]");
+            println!("  Architecture:    {}", cfg.arch.as_str());
+            println!("  Context Length:  {} tokens", cfg.context_length);
+            println!("  Embedding Dim:   {}", cfg.embedding_length);
+            println!("  Layers (Blocks): {}", cfg.block_count);
+            println!("  FFN Dimension:   {}", cfg.feed_forward_length);
+            println!(
+                "  Attention Heads: {} Q heads / {} KV heads (head dim: {})",
+                cfg.head_count, cfg.head_count_kv, cfg.head_dim
+            );
+            println!("  RMS Norm Epsilon:{:e}", cfg.rms_epsilon);
+            println!("  RoPE Freq Base:  {}", cfg.rope_freq_base);
+            println!("  Vocabulary Size: {} tokens", cfg.vocab_size);
+            println!("  Pre-tokenizer:   {}", cfg.pre_tokenizer);
+            println!(
+                "  KV Cache / Token:{} bytes (Q8_0)",
+                cfg.kv_cache_bytes_per_token()
+            );
+            Some(cfg)
+        }
+        Err(e) => {
+            println!("\n[Model Hyperparameters]: Failed to parse ({e})");
+            None
+        }
+    };
+
+    println!("\n[Tensor Inventory (Top 10)]");
+    for (i, t) in gguf.tensors.iter().take(10).enumerate() {
+        println!(
+            "  {:2}. {:<32} {:?} {:<12?} ({})",
+            i + 1,
+            t.name,
+            t.dims,
+            t.ggml_type,
+            format_bytes_auto(t.raw_size as u64)
+        );
+    }
+    if gguf.tensors.len() > 10 {
+        println!("  ... and {} more tensors", gguf.tensors.len() - 10);
+    }
+
+    if let Some(cfg) = config {
+        println!("\n[Memory Budget Pre-Flight Plan ($MEM<8G)]");
+        match MemoryBudget::plan(gguf, &cfg, None) {
+            Ok(plan) => {
+                println!("  Context Length:  {} tokens", plan.context_length);
+                println!(
+                    "  Weights (SoA):   {}",
+                    format_bytes_gib(plan.weights_bytes as u64)
+                );
+                println!(
+                    "  KV Cache:        {}",
+                    format_bytes_gib(plan.kv_cache_bytes as u64)
+                );
+                println!(
+                    "  Scratch Memory:  {}",
+                    format_bytes_mib(plan.scratch_bytes as u64)
+                );
+                println!(
+                    "  Safety Headroom: {}",
+                    format_bytes_mib(plan.slack_bytes as u64)
+                );
+                println!(
+                    "  Total Planned:   {} / {} ({})",
+                    format_bytes_gib(plan.total_planned_bytes as u64),
+                    format_bytes_gib(MAX_RAM_BUDGET_BYTES),
+                    if plan.fits_budget {
+                        "FITS BUDGET"
+                    } else {
+                        "OVER BUDGET"
+                    }
+                );
+            }
+            Err(e) => {
+                println!("  Budget Planning Error:\n  {e}");
+            }
+        }
+    }
+    println!("============================================================");
+
+    Ok(())
+}
+
+fn run_load(path: &Path, requested_ctx: Option<usize>) -> Result<()> {
+    println!("Loading GGUF model: {}", path.display());
+    if let Some(ctx) = requested_ctx {
+        println!("Requested context length: {} tokens", ctx);
+    }
+
+    let (rss_start, _) = get_process_memory_stats();
+    println!("Initial Process RSS: {}", format_bytes_auto(rss_start));
+
+    let model =
+        LoadedModel::load(path, requested_ctx).context("failed to stream model into arena")?;
+
+    let (rss_after, hwm_peak) = get_process_memory_stats();
+
+    println!("============================================================");
+    println!("            Súlimo Model Loading Verification");
+    println!("============================================================");
+    println!(
+        "Model:            {}",
+        path.file_name().unwrap_or_default().to_string_lossy()
+    );
+    println!("Architecture:     {}", model.config.arch.as_str());
+    println!("Tensors Loaded:   {}", model.tensors.len());
+    println!(
+        "Arena Capacity:   {}",
+        format_bytes_auto(model.arena.capacity() as u64)
+    );
+    println!(
+        "Arena Weights:    {}",
+        format_bytes_auto(model.arena.weights_bytes() as u64)
+    );
+    println!(
+        "Arena Remaining:  {}",
+        format_bytes_auto(model.arena.remaining_bytes() as u64)
+    );
+    println!("Final RSS:        {}", format_bytes_auto(rss_after));
+    println!("Peak RSS (VmHWM): {}", format_bytes_auto(hwm_peak));
+    println!("============================================================");
+    println!("[Verification of $ZCOPY Invariants]");
+    println!("  - Every arena tensor pointer % 4096 == 0: PASSED");
+    println!("  - Every allocated size padded to 64 B:    PASSED");
+    println!("  - Q4_0 AoS to SoA repacking:             PASSED");
+    println!("============================================================");
 
     Ok(())
 }

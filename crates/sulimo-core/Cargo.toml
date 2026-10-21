@@ -9,3 +9,5 @@ license.workspace = true
 thiserror.workspace = true
 serde.workspace = true
 libc.workspace = true
+memmap2.workspace = true
+half.workspace = true
