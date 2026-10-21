@@ -123,7 +123,7 @@ impl InteractiveSession {
     fn print_welcome(&self) {
         println!("\x1b[1;38;5;51m");
         println!("  ╭────────────────────────────────────────────────────────────────────────╮");
-        println!("  │   ____        _ _                 (Arda's Breath v0.2.0)               │");
+        println!("  │   ____        _ _                 (Arda's Breath v0.3.0)               │");
         println!("  │  / ___| _   _| (_)_ __ ___   ___  Antigravity-Style Local CLI          │");
         println!(
             "  │  \\___ \\| | | | | | '_ ` _ \\ / _ \\ Gen8–10 Legacy Tier Inference        │"

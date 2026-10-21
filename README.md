@@ -12,7 +12,7 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/Antux912012/Sulimo/releases"><img src="https://img.shields.io/badge/version-v0.2.0-blue.svg" alt="Version 0.2.0" /></a>
+  <a href="https://github.com/Antux912012/Sulimo/releases"><img src="https://img.shields.io/badge/version-v0.3.0-blue.svg" alt="Version 0.3.0" /></a>
   <a href="https://www.rust-lang.org/"><img src="https://img.shields.io/badge/rust-2021%20edition-orange.svg" alt="Rust 2021" /></a>
   <a href="https://gtk.org/"><img src="https://img.shields.io/badge/UI-GTK4%20%7C%20Libadwaita-green.svg" alt="GTK4 Libadwaita" /></a>
   <a href="https://www.khronos.org/opencl/"><img src="https://img.shields.io/badge/acceleration-OpenCL%20FP16%20SIMD8-blueviolet.svg" alt="OpenCL FP16" /></a>
@@ -104,7 +104,7 @@ The CLI interface features an authentic Antigravity terminal aesthetic, rich box
 
 ```text
   ╭────────────────────────────────────────────────────────────────────────╮
-  │   ____        _ _                 (Arda's Breath v0.2.0)               │
+  │   ____        _ _                 (Arda's Breath v0.3.0)               │
   │  / ___| _   _| (_)_ __ ___   ___  Antigravity-Style Local CLI          │
   │  \___ \| | | | | | '_ ` _ \ / _ \ Gen8–10 Legacy Tier Inference        │
   │   ___) | |_| | | | | | | | | (_) | Hybrid iGPU OpenCL FP16 + AVX2 CPU  │
@@ -230,7 +230,7 @@ sudo apt install sulimo
 
 Download the latest `.deb` package from the [Releases](https://github.com/Antux912012/Sulimo/releases) page:
 ```bash
-sudo dpkg -i sulimo_0.2.0_amd64.deb
+sudo dpkg -i sulimo_0.3.0_amd64.deb
 sudo apt install -f # resolve any runtime dependencies (libgtk-4-1, libadwaita-1-0)
 ```
 

@@ -218,7 +218,7 @@ impl ModelDownloader {
             let req = self
                 .client
                 .get(&meta.download_url)
-                .set("User-Agent", "Sulimo/0.2.0")
+                .set("User-Agent", concat!("Sulimo/", env!("CARGO_PKG_VERSION")))
                 .set("Range", &format!("bytes={existing_part_size}-"));
 
             match req.call() {
@@ -265,12 +265,12 @@ impl ModelDownloader {
         let req = if downloaded_bytes > 0 {
             self.client
                 .get(&meta.download_url)
-                .set("User-Agent", "Sulimo/0.2.0")
+                .set("User-Agent", concat!("Sulimo/", env!("CARGO_PKG_VERSION")))
                 .set("Range", &format!("bytes={downloaded_bytes}-"))
         } else {
             self.client
                 .get(&meta.download_url)
-                .set("User-Agent", "Sulimo/0.2.0")
+                .set("User-Agent", concat!("Sulimo/", env!("CARGO_PKG_VERSION")))
         };
 
         let resp = match req.call() {
