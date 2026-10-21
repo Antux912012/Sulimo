@@ -142,6 +142,16 @@ impl KvCache {
         let offset = ring_pos * block_bytes;
         &self.v_slices[layer].as_slice()[offset..offset + block_bytes]
     }
+
+    /// Returns a reference to the key cache memory slice for layer `layer`.
+    pub fn k_slice(&self, layer: usize) -> &ArenaSlice {
+        &self.k_slices[layer]
+    }
+
+    /// Returns a reference to the value cache memory slice for layer `layer`.
+    pub fn v_slice(&self, layer: usize) -> &ArenaSlice {
+        &self.v_slices[layer]
+    }
 }
 
 /// Quantizes an array of f32 activations into Q8_0 blocks (§6.2).

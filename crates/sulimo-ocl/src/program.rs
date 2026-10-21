@@ -15,6 +15,7 @@ use std::collections::hash_map::DefaultHasher;
 use std::fs;
 use std::hash::{Hash, Hasher};
 use std::path::PathBuf;
+use std::sync::{Arc, OnceLock};
 use thiserror::Error;
 
 const GEMM_KERNEL_SOURCE: &str = include_str!("../../../kernels/gemm_q4_0.cl");
@@ -30,8 +31,8 @@ pub enum OclError {
     Driver(String),
     #[error("OpenCL compilation or build error: {0}\nLog: {1}")]
     BuildFailed(String, String),
-    #[error("Zero-copy violation: mapped pointer {0:p} does not match host pointer {1:p}")]
-    ZeroCopyViolation(*const u8, *const u8),
+    #[error("Zero-copy violation: mapped pointer {0:#x} does not match host pointer {1:#x}")]
+    ZeroCopyViolation(usize, usize),
     #[error("OpenCL command execution failed with status: {0}")]
     ExecutionFailed(i32),
     #[error("I/O error: {0}")]
@@ -66,7 +67,29 @@ pub struct OclContext {
     pub device_info: OclDeviceInfo,
 }
 
+// SAFETY: OpenCL API calls on Context, CommandQueue, Program, and Kernel objects
+// are thread-safe per the OpenCL specification.
+unsafe impl Send for OclContext {}
+unsafe impl Sync for OclContext {}
+
+static GLOBAL_CONTEXT: OnceLock<Result<Arc<OclContext>, String>> = OnceLock::new();
+
 impl OclContext {
+    /// Returns the process-wide shared OpenCL context, initializing it on first call.
+    pub fn get_or_init() -> Result<Arc<Self>, OclError> {
+        let res =
+            GLOBAL_CONTEXT.get_or_init(|| Self::new().map(Arc::new).map_err(|e| e.to_string()));
+        match res {
+            Ok(ctx) => Ok(Arc::clone(ctx)),
+            Err(e) => Err(OclError::Driver(e.clone())),
+        }
+    }
+
+    /// Flushes and waits for all commands on the command queue to complete.
+    pub fn finish(&self) {
+        let _ = opencl3::command_queue::finish(self.queue.get());
+    }
+
     /// Initializes OpenCL context on the preferred Intel GPU device.
     pub fn new() -> Result<Self, OclError> {
         ensure_icd_env();

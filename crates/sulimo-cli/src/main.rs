@@ -363,6 +363,8 @@ fn run_inference(
     println!("------------------------------------------------------------");
     println!("Prompt tokens:    {}", stats.prompt_tokens);
     println!("Generated tokens: {}", stats.completion_tokens);
+    println!("Prefill backend:  {}", stats.prefill_backend);
+    println!("Context repacks:  {}", stats.context_repacks);
     println!("TTFT:             {:.2} ms", stats.ttft_ms);
     println!("Prefill speed:    {:.2} tok/s", stats.prefill_tok_per_sec);
     println!("Decode speed:     {:.2} tok/s", stats.decode_tok_per_sec);

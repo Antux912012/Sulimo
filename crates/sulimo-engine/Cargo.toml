@@ -13,6 +13,7 @@ opencl = ["sulimo-ocl/opencl"]
 sulimo-core = { path = "../sulimo-core" }
 sulimo-cpu = { path = "../sulimo-cpu" }
 sulimo-ocl = { path = "../sulimo-ocl", default-features = false }
+half.workspace = true
 thiserror.workspace = true
 serde.workspace = true
 fastrand = "2.5.0"

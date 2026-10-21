@@ -67,7 +67,7 @@ pub struct OclPrefillScratch {
 /// Enqueues Q4_0 x F16 matrix multiplication without waiting (pipelined).
 #[allow(clippy::too_many_arguments)]
 pub fn enqueue_gemm_q4_0_f16(
-    ctx: &mut OclContext,
+    ctx: &OclContext,
     scales_buf: &OclBuffer,
     quants_buf: &OclBuffer,
     x_buf: &OclBuffer,
@@ -77,11 +77,8 @@ pub fn enqueue_gemm_q4_0_f16(
     n: usize,
 ) -> Result<Event, OclError> {
     let kernel = match ctx.active_variant {
-        KernelVariant::Intel => ctx
-            .kernel_intel
-            .as_mut()
-            .unwrap_or(&mut ctx.kernel_portable),
-        KernelVariant::Portable => &mut ctx.kernel_portable,
+        KernelVariant::Intel => ctx.kernel_intel.as_ref().unwrap_or(&ctx.kernel_portable),
+        KernelVariant::Portable => &ctx.kernel_portable,
     };
 
     let m_i32 = m as i32;
@@ -109,7 +106,7 @@ pub fn enqueue_gemm_q4_0_f16(
 
 /// Enqueues RMSNorm over FP16 activations with FP32 weights.
 pub fn enqueue_rmsnorm(
-    ctx: &mut OclContext,
+    ctx: &OclContext,
     x: &OclBuffer,
     w: &OclBuffer,
     out: &mut OclBuffer,
@@ -140,7 +137,7 @@ pub fn enqueue_rmsnorm(
 /// Enqueues RoPE rotation on Q or K.
 #[allow(clippy::too_many_arguments)]
 pub fn enqueue_rope(
-    ctx: &mut OclContext,
+    ctx: &OclContext,
     vec: &mut OclBuffer,
     head_count: usize,
     head_dim: usize,
@@ -177,7 +174,7 @@ pub fn enqueue_rope(
 
 /// Enqueues storing an activation vector into the Q8_0 ring KV cache buffer.
 pub fn enqueue_kv_store(
-    ctx: &mut OclContext,
+    ctx: &OclContext,
     act: &OclBuffer,
     kv_cache: &mut OclBuffer,
     start_pos: usize,
@@ -210,7 +207,7 @@ pub fn enqueue_kv_store(
 /// Enqueues causal Grouped Query Attention (GQA) prefill kernel.
 #[allow(clippy::too_many_arguments)]
 pub fn enqueue_attention_prefill(
-    ctx: &mut OclContext,
+    ctx: &OclContext,
     q: &OclBuffer,
     k_cache: &OclBuffer,
     v_cache: &OclBuffer,
@@ -252,7 +249,7 @@ pub fn enqueue_attention_prefill(
 
 /// Enqueues SwiGLU activation kernel: out = silu(gate) * up.
 pub fn enqueue_silu_mul(
-    ctx: &mut OclContext,
+    ctx: &OclContext,
     gate: &OclBuffer,
     up: &OclBuffer,
     out: &mut OclBuffer,
@@ -277,7 +274,7 @@ pub fn enqueue_silu_mul(
 
 /// Enqueues elementwise residual addition: a = a + b.
 pub fn enqueue_add(
-    ctx: &mut OclContext,
+    ctx: &OclContext,
     a: &mut OclBuffer,
     b: &OclBuffer,
     total_elements: usize,
@@ -301,7 +298,7 @@ pub fn enqueue_add(
 /// Enqueues final-position logits projection: logits = x_final · W^T.
 #[allow(clippy::too_many_arguments)]
 pub fn enqueue_logits_final(
-    ctx: &mut OclContext,
+    ctx: &OclContext,
     x_all: &OclBuffer,
     scales: &OclBuffer,
     quants: &OclBuffer,
@@ -338,7 +335,7 @@ pub fn enqueue_logits_final(
 /// **one** single OS futex wait at the very end ($BATT, A9).
 #[allow(clippy::too_many_arguments)]
 pub fn execute_prefill_ubatch(
-    ctx: &mut OclContext,
+    ctx: &OclContext,
     cfg: &ModelConfig,
     tensors: &OclModelTensors,
     kv_cache: &mut OclKvCache,

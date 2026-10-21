@@ -13,7 +13,7 @@ pub mod program;
 pub mod waiter;
 
 #[cfg(feature = "opencl")]
-pub use buffer::OclBuffer;
+pub use buffer::{active_cl_mem_count, OclBuffer};
 #[cfg(feature = "opencl")]
 pub use gemm::{gemm_q4_0_f16, gemm_q4_0_f16_scalar_reference, GemmProfile};
 #[cfg(feature = "opencl")]

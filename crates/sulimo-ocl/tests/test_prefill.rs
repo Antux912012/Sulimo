@@ -55,7 +55,7 @@ fn cosine_similarity(a: &[f32], b: &[f32]) -> f64 {
 
 #[test]
 fn test_m3b_kv_store_precision_vs_cpu() {
-    let mut ctx = match OclContext::new() {
+    let ctx = match OclContext::new() {
         Ok(c) => c,
         Err(e) => {
             println!("OpenCL unavailable ({e}), skipping GPU test");
@@ -112,7 +112,7 @@ fn test_m3b_kv_store_precision_vs_cpu() {
 
     let start_pos = 5;
     let event = enqueue_kv_store(
-        &mut ctx,
+        &ctx,
         &act_buf,
         &mut kv_gpu_buf,
         start_pos,
@@ -294,7 +294,7 @@ fn helper_alloc_scratch(
 
 #[test]
 fn test_m3b_full_layer_prefill_and_zero_spin_proof() {
-    let mut ctx = match OclContext::new() {
+    let ctx = match OclContext::new() {
         Ok(c) => c,
         Err(e) => {
             println!("OpenCL unavailable ({e}), skipping GPU test");
@@ -558,16 +558,8 @@ fn test_m3b_full_layer_prefill_and_zero_spin_proof() {
     let wall_start = Instant::now();
 
     // Execute full-layer prompt prefill across all layers with a SINGLE OS wait
-    execute_prefill_ubatch(
-        &mut ctx,
-        &cfg,
-        &ocl_model,
-        &mut ocl_kv,
-        &mut ocl_scratch,
-        0,
-        n,
-    )
-    .expect("execute_prefill_ubatch");
+    execute_prefill_ubatch(&ctx, &cfg, &ocl_model, &mut ocl_kv, &mut ocl_scratch, 0, n)
+        .expect("execute_prefill_ubatch");
 
     let wall_duration = wall_start.elapsed();
     let cpu_ticks_after = read_thread_cpu_time_ticks();
@@ -895,7 +887,7 @@ fn test_m3b_full_layer_prefill_and_zero_spin_proof() {
 
 #[test]
 fn test_m3b_prefill_throughput_benchmark() {
-    let mut ctx = match OclContext::new() {
+    let ctx = match OclContext::new() {
         Ok(c) => c,
         Err(_) => return,
     };
@@ -1068,31 +1060,15 @@ fn test_m3b_prefill_throughput_benchmark() {
     };
 
     // Warmup
-    execute_prefill_ubatch(
-        &mut ctx,
-        &cfg,
-        &ocl_model,
-        &mut ocl_kv,
-        &mut ocl_scratch,
-        0,
-        n,
-    )
-    .expect("warmup");
+    execute_prefill_ubatch(&ctx, &cfg, &ocl_model, &mut ocl_kv, &mut ocl_scratch, 0, n)
+        .expect("warmup");
 
     // Benchmark 5 runs
     let runs = 5;
     let start = Instant::now();
     for _ in 0..runs {
-        execute_prefill_ubatch(
-            &mut ctx,
-            &cfg,
-            &ocl_model,
-            &mut ocl_kv,
-            &mut ocl_scratch,
-            0,
-            n,
-        )
-        .expect("bench run");
+        execute_prefill_ubatch(&ctx, &cfg, &ocl_model, &mut ocl_kv, &mut ocl_scratch, 0, n)
+            .expect("bench run");
     }
     let elapsed = start.elapsed().as_secs_f64();
     let total_tokens = n * runs;

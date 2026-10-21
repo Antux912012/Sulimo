@@ -318,7 +318,12 @@ pub fn forward_token<'s>(
     &scratch.logits
 }
 
-fn lookup_token_embedding(tensor: &LoadedTensor, embd_dim: usize, token_id: u32, out: &mut [f32]) {
+pub fn lookup_token_embedding(
+    tensor: &LoadedTensor,
+    embd_dim: usize,
+    token_id: u32,
+    out: &mut [f32],
+) {
     let tid = token_id as usize;
     match &tensor.data {
         LoadedTensorData::Q4_0 { scales, quants, .. } => {

@@ -13,6 +13,14 @@ use opencl3::memory::{
 use opencl3::types::CL_TRUE;
 use std::ffi::c_void;
 use std::ptr;
+use std::sync::atomic::{AtomicUsize, Ordering};
+
+static ACTIVE_CL_MEM_COUNT: AtomicUsize = AtomicUsize::new(0);
+
+/// Returns the current number of active (un-dropped) zero-copy OpenCL buffers.
+pub fn active_cl_mem_count() -> usize {
+    ACTIVE_CL_MEM_COUNT.load(Ordering::Relaxed)
+}
 
 /// A zero-copy OpenCL buffer mapped directly over page-aligned arena memory ($ZCOPY).
 pub struct OclBuffer {
@@ -86,13 +94,17 @@ impl OclBuffer {
             )));
         }
 
+        let _ = opencl3::command_queue::finish(queue.get());
+
         if !is_zero_copy {
             let _ = release_mem_object(mem);
             return Err(OclError::ZeroCopyViolation(
-                mapped_ptr as *const u8,
-                host_ptr,
+                mapped_ptr as usize,
+                host_ptr as usize,
             ));
         }
+
+        ACTIVE_CL_MEM_COUNT.fetch_add(1, Ordering::Relaxed);
 
         Ok(Self {
             mem,
@@ -154,6 +166,7 @@ impl Drop for OclBuffer {
             unsafe {
                 let _ = release_mem_object(self.mem);
             }
+            ACTIVE_CL_MEM_COUNT.fetch_sub(1, Ordering::Relaxed);
         }
     }
 }

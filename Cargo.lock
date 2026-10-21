@@ -234,6 +234,7 @@ name = "sulimo-engine"
 version = "0.2.0"
 dependencies = [
  "fastrand",
+ "half",
  "serde",
  "sulimo-core",
  "sulimo-cpu",

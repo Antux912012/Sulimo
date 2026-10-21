@@ -1,10 +1,15 @@
-//! High-level inference engine coordinating model, tokenizer, and sampler (@C:ENG).
+//! High-level inference engine coordinating model, tokenizer, and sampler (@C:ENG, §7 M4).
 //!
-//! Provides the primary application programming interface (`Engine::load`, `Engine::generate`)
-//! for headless CLI runners and reactive desktop user interfaces.
+//! Provides the primary application programming interface (`Engine::load`, `Engine::generate_with_callback`)
+//! for headless CLI runners and reactive desktop user interfaces, coordinating asymmetric
+//! iGPU prefill and physical-core CPU decode.
 
 use crate::forward_pass::{forward_token, ModelTensors, ScratchBuffers};
 use crate::sampler::{sample_token, SamplingParams};
+#[cfg(feature = "opencl")]
+use crate::scheduler::OclEngineState;
+use crate::scheduler::{lookup_token_embedding_f16, repack_context, SchedulerConfig};
+use half::f16;
 use std::path::Path;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::Instant;
@@ -13,6 +18,8 @@ use sulimo_core::kv_cache::KvCache;
 use sulimo_core::loader::{LoadedModel, LoaderError};
 use sulimo_core::tokenizer::{Tokenizer, TokenizerError};
 use sulimo_cpu::thread_pool::ThreadPool;
+#[cfg(feature = "opencl")]
+use sulimo_ocl::execute_prefill_ubatch;
 use thiserror::Error;
 
 /// Errors returned during engine initialization or generation.
@@ -24,6 +31,13 @@ pub enum EngineError {
     Tokenizer(#[from] TokenizerError),
     #[error("GGUF mmap error: {0}")]
     Gguf(#[from] sulimo_core::GgufError),
+    #[cfg(feature = "opencl")]
+    #[error("OpenCL error: {0}")]
+    Ocl(#[from] sulimo_ocl::OclError),
+    #[error("scheduler error: {0}")]
+    Scheduler(#[from] crate::scheduler::SchedulerError),
+    #[error("generation cancelled by user")]
+    Cancelled,
 }
 
 /// Generation performance and telemetry metrics.
@@ -35,6 +49,8 @@ pub struct GenerationStats {
     pub prefill_tok_per_sec: f64,
     pub decode_tok_per_sec: f64,
     pub total_time_ms: f64,
+    pub prefill_backend: String,
+    pub context_repacks: usize,
 }
 
 /// The local inference engine instance.
@@ -44,14 +60,27 @@ pub struct Engine {
     pub kv_cache: KvCache,
     pub scratch: ScratchBuffers,
     pub thread_pool: ThreadPool,
+    pub scheduler_config: SchedulerConfig,
+    #[cfg(feature = "opencl")]
+    pub ocl_state: Option<OclEngineState>,
 }
 
 impl Engine {
-    /// Loads a model from disk, sets up tokenizer, allocates KV cache and scratch memory.
+    /// Loads a model from disk with default scheduler configuration.
     pub fn load<P: AsRef<Path>>(
         path: P,
         requested_ctx: Option<usize>,
         threads: Option<usize>,
+    ) -> Result<Self, EngineError> {
+        Self::load_with_config(path, requested_ctx, threads, SchedulerConfig::default())
+    }
+
+    /// Loads a model from disk with customized scheduler configuration.
+    pub fn load_with_config<P: AsRef<Path>>(
+        path: P,
+        requested_ctx: Option<usize>,
+        threads: Option<usize>,
+        scheduler_config: SchedulerConfig,
     ) -> Result<Self, EngineError> {
         let path_ref = path.as_ref();
         let gguf_mmap = GgufMmap::open(path_ref)?;
@@ -65,12 +94,39 @@ impl Engine {
 
         let thread_pool = ThreadPool::new(threads);
 
+        #[cfg(feature = "opencl")]
+        let ocl_state = if scheduler_config.opencl_enabled {
+            match OclEngineState::try_init(&mut model, &kv_cache, scheduler_config.ubatch_size) {
+                Ok(state) => {
+                    eprintln!(
+                        "[Scheduler] OpenCL initialization: active on {} ({}, {:?}). GPU prompt prefill enabled.",
+                        state.ctx.device_info.device_name,
+                        state.ctx.device_info.driver_version,
+                        state.ctx.active_variant
+                    );
+                    Some(state)
+                }
+                Err(e) => {
+                    eprintln!(
+                        "[Scheduler] OpenCL initialization: unavailable ({e}). Running in CPU-only mode."
+                    );
+                    None
+                }
+            }
+        } else {
+            eprintln!("[Scheduler] OpenCL explicitly disabled by configuration. Running in CPU-only mode.");
+            None
+        };
+
         Ok(Self {
             model,
             tokenizer,
             kv_cache,
             scratch,
             thread_pool,
+            scheduler_config,
+            #[cfg(feature = "opencl")]
+            ocl_state,
         })
     }
 
@@ -98,22 +154,151 @@ impl Engine {
 
         let start_time = Instant::now();
         let mut ttft = 0.0;
+        let mut context_repacks = 0;
 
-        // 1. Prompt Ingestion / Prefill phase
-        let mut next_token_logits = &[][..];
-        for (pos, &token_id) in prompt_tokens.iter().enumerate() {
-            if cancel.load(Ordering::Relaxed) {
-                break;
+        let n = prompt_tokens.len();
+        let use_gpu = self.scheduler_config.opencl_enabled
+            && n >= self.scheduler_config.gpu_threshold
+            && self.has_gpu_backend();
+
+        let prefill_backend_str = if use_gpu {
+            #[cfg(feature = "opencl")]
+            if let Some(ref ocl) = self.ocl_state {
+                eprintln!(
+                    "[Scheduler] Prefill: using GPU (prompt tokens N={n} >= threshold T={}, ubatch_size={}) on {}",
+                    self.scheduler_config.gpu_threshold,
+                    self.scheduler_config.ubatch_size,
+                    ocl.ctx.device_info.device_name
+                );
             }
-            next_token_logits = forward_token(
-                &self.model.config,
-                &model_tensors,
-                &mut self.kv_cache,
-                token_id,
-                pos,
-                &mut self.scratch,
-                &mut self.thread_pool,
-            );
+            "GPU-OpenCL"
+        } else {
+            if !self.has_gpu_backend() {
+                eprintln!(
+                    "[Scheduler] Prefill: using CPU (OpenCL unavailable or disabled; executing on physical cores)"
+                );
+            } else {
+                eprintln!(
+                    "[Scheduler] Prefill: using CPU (prompt tokens N={n} < threshold T={})",
+                    self.scheduler_config.gpu_threshold
+                );
+            }
+            "CPU-AVX2"
+        };
+
+        let mut current_pos = 0;
+        let mut current_logits = vec![0.0f32; self.model.config.vocab_size];
+
+        // 1. Prompt Prefill Phase (GPU when N >= T, CPU otherwise)
+        if use_gpu {
+            #[cfg(feature = "opencl")]
+            if let Some(ref mut ocl) = self.ocl_state {
+                let ubatch_size = self.scheduler_config.ubatch_size;
+                let embd = self.model.config.embedding_length;
+                let mut token_offset = 0;
+
+                while token_offset < n {
+                    if cancel.load(Ordering::Relaxed) {
+                        return Err(EngineError::Cancelled);
+                    }
+
+                    let chunk_len = (n - token_offset).min(ubatch_size);
+                    let chunk_tokens = &prompt_tokens[token_offset..token_offset + chunk_len];
+
+                    // Check context overflow before executing ubatch
+                    if current_pos + chunk_len > self.model.plan.context_length {
+                        let (new_past, _new_pos) =
+                            repack_context(&past_tokens, self.model.plan.context_length);
+                        eprintln!(
+                            "[Context Repack] Context capacity ({}) reached at pos {current_pos}. Repacking context to {} tokens, re-prefilling on GPU.",
+                            self.model.plan.context_length,
+                            new_past.len()
+                        );
+                        context_repacks += 1;
+                        past_tokens = new_past;
+                        current_pos = 0;
+                        token_offset = 0;
+                        continue;
+                    }
+
+                    // Populate scratch.x with F16 token embeddings
+                    {
+                        let x_f16: &mut [f16] = unsafe {
+                            std::slice::from_raw_parts_mut(
+                                ocl.scratch_x_slice.as_ptr() as *mut f16,
+                                chunk_len * embd,
+                            )
+                        };
+                        for (i, &tok) in chunk_tokens.iter().enumerate() {
+                            lookup_token_embedding_f16(
+                                model_tensors.token_embd,
+                                embd,
+                                tok,
+                                &mut x_f16[i * embd..(i + 1) * embd],
+                            );
+                        }
+                    }
+
+                    // Execute full-layer prefill for this ubatch on GPU ($BATT, A9)
+                    execute_prefill_ubatch(
+                        &ocl.ctx,
+                        &self.model.config,
+                        &ocl.model_tensors,
+                        &mut ocl.kv_cache,
+                        &mut ocl.scratch,
+                        current_pos,
+                        chunk_len,
+                    )?;
+
+                    current_pos += chunk_len;
+                    token_offset += chunk_len;
+
+                    // If final chunk of the prompt, read output logits for sampling
+                    if token_offset == n {
+                        let map_ptr = ocl.scratch.logits.map_read(&ocl.ctx.queue)?;
+                        let logits_f32: &[f32] = unsafe {
+                            std::slice::from_raw_parts(
+                                map_ptr as *const f32,
+                                self.model.config.vocab_size,
+                            )
+                        };
+                        current_logits.copy_from_slice(logits_f32);
+                        let _ = ocl.scratch.logits.unmap(&ocl.ctx.queue, map_ptr);
+                    }
+                }
+            }
+        } else {
+            // CPU Prefill path
+            for &token_id in &prompt_tokens {
+                if cancel.load(Ordering::Relaxed) {
+                    return Err(EngineError::Cancelled);
+                }
+
+                if current_pos >= self.model.plan.context_length {
+                    let (new_past, _) =
+                        repack_context(&past_tokens, self.model.plan.context_length);
+                    eprintln!(
+                        "[Context Repack] Context capacity ({}) reached at pos {current_pos}. Repacking context to {} tokens, re-prefilling on CPU.",
+                        self.model.plan.context_length,
+                        new_past.len()
+                    );
+                    context_repacks += 1;
+                    past_tokens = new_past;
+                    current_pos = 0;
+                }
+
+                let logits_ref = forward_token(
+                    &self.model.config,
+                    &model_tensors,
+                    &mut self.kv_cache,
+                    token_id,
+                    current_pos,
+                    &mut self.scratch,
+                    &mut self.thread_pool,
+                );
+                current_logits.copy_from_slice(logits_ref);
+                current_pos += 1;
+            }
         }
 
         let prefill_duration = start_time.elapsed().as_secs_f64();
@@ -123,12 +308,13 @@ impl Engine {
             0.0
         };
 
+        // 2. Autoregressive Token Decode Phase (Always CPU physical cores, GPU in RC6 deep sleep)
+        eprintln!(
+            "[Scheduler] Decode: using CPU physical cores pinned (N=1), GPU idle -> entering RC6 deep sleep"
+        );
+
         let mut decode_start = Instant::now();
         let mut completion_tokens = 0;
-
-        // 2. Autoregressive token decode phase
-        let mut current_pos = prompt_tokens.len();
-        let mut current_logits = next_token_logits.to_vec();
 
         while completion_tokens < params.max_tokens {
             if cancel.load(Ordering::Relaxed) {
@@ -156,8 +342,31 @@ impl Engine {
             completion_tokens += 1;
 
             if current_pos >= self.model.plan.context_length {
-                // Circular ring buffer wraps around (A12)
-                current_pos %= self.model.plan.context_length;
+                let (new_past, _) = repack_context(&past_tokens, self.model.plan.context_length);
+                eprintln!(
+                    "[Context Repack] Context capacity ({}) reached during decode at pos {current_pos}. Repacking context to {} tokens.",
+                    self.model.plan.context_length,
+                    new_past.len()
+                );
+                context_repacks += 1;
+                past_tokens = new_past;
+                current_pos = 0;
+
+                // Re-prefill past context on CPU
+                for &p_tok in &past_tokens {
+                    let logits_ref = forward_token(
+                        &self.model.config,
+                        &model_tensors,
+                        &mut self.kv_cache,
+                        p_tok,
+                        current_pos,
+                        &mut self.scratch,
+                        &mut self.thread_pool,
+                    );
+                    current_logits.copy_from_slice(logits_ref);
+                    current_pos += 1;
+                }
+                continue;
             }
 
             let logits_ref = forward_token(
@@ -189,6 +398,20 @@ impl Engine {
             prefill_tok_per_sec: prefill_tok_s,
             decode_tok_per_sec: decode_tok_s,
             total_time_ms,
+            prefill_backend: prefill_backend_str.to_string(),
+            context_repacks,
         })
+    }
+
+    /// Returns whether the engine has an active GPU OpenCL backend initialized.
+    pub fn has_gpu_backend(&self) -> bool {
+        #[cfg(feature = "opencl")]
+        {
+            self.ocl_state.is_some()
+        }
+        #[cfg(not(feature = "opencl"))]
+        {
+            false
+        }
     }
 }
