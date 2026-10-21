@@ -172,7 +172,9 @@ pub fn forward_token<'s>(
     let eps = cfg.rms_epsilon;
     let rope_mode = match cfg.arch {
         ModelArch::Llama => RopeMode::Norm,
-        ModelArch::Qwen2 => RopeMode::Neox,
+        ModelArch::Qwen2 | ModelArch::Gemma2 | ModelArch::MiniCPM3 | ModelArch::LFM => {
+            RopeMode::Neox
+        }
     };
 
     // 1. Embedding lookup: x = token_embd[token_id]

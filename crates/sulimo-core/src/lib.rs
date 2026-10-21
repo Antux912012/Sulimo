@@ -10,6 +10,7 @@ pub mod gguf;
 pub mod kv_cache;
 pub mod loader;
 pub mod model_config;
+pub mod model_manager;
 pub mod repack;
 pub mod sysmem;
 pub mod tier;
@@ -23,6 +24,7 @@ pub use loader::{
     get_process_memory_stats, LoadedModel, LoadedTensor, LoadedTensorData, LoaderError,
 };
 pub use model_config::{ConfigError, ModelArch, ModelConfig};
+pub use model_manager::{default_registry, find_model_by_id, ModelMetadata, PromptTemplateType};
 pub use repack::{
     dequantize_q4_0_aos, dequantize_q4_0_soa, q4_0_soa_sizes, repack_q4_0_aos_to_soa, RepackError,
     Q4_0_AOS_BLOCK_BYTES, Q4_0_BLOCK_SIZE,

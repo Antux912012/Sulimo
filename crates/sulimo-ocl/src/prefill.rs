@@ -353,7 +353,7 @@ pub fn execute_prefill_ubatch(
     let eps = cfg.rms_epsilon;
     let rope_mode = match cfg.arch {
         ModelArch::Llama => 0, // Norm
-        ModelArch::Qwen2 => 1, // Neox
+        ModelArch::Qwen2 | ModelArch::Gemma2 | ModelArch::MiniCPM3 | ModelArch::LFM => 1, // Neox
     };
 
     let blocks_per_pos = (head_count_kv * head_dim) / 32;

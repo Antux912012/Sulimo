@@ -6,12 +6,15 @@ use crate::gguf::{GgufFile, GgufValue};
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
-/// Supported decoder-only transformer architectures in v0.1.
+/// Supported decoder-only transformer architectures.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
 pub enum ModelArch {
     Llama,
     Qwen2,
+    Gemma2,
+    MiniCPM3,
+    LFM,
 }
 
 impl ModelArch {
@@ -19,6 +22,9 @@ impl ModelArch {
         match self {
             Self::Llama => "llama",
             Self::Qwen2 => "qwen2",
+            Self::Gemma2 => "gemma2",
+            Self::MiniCPM3 => "minicpm3",
+            Self::LFM => "lfm",
         }
     }
 }
@@ -28,7 +34,9 @@ impl ModelArch {
 pub enum ConfigError {
     #[error("missing 'general.architecture' metadata in GGUF")]
     MissingArchitecture,
-    #[error("unsupported architecture '{0}' (v0.1 supports 'llama' and 'qwen2')")]
+    #[error(
+        "unsupported architecture '{0}' (supported: 'llama', 'qwen2', 'gemma2', 'minicpm3', 'lfm')"
+    )]
     UnsupportedArchitecture(String),
     #[error("missing required metadata field '{0}' for architecture '{1}'")]
     MissingField(String, &'static str),
@@ -76,6 +84,9 @@ impl ModelConfig {
         let arch = match arch_str {
             "llama" => ModelArch::Llama,
             "qwen2" => ModelArch::Qwen2,
+            "gemma2" => ModelArch::Gemma2,
+            "minicpm3" | "minicpm" => ModelArch::MiniCPM3,
+            "lfm" | "lfm2" => ModelArch::LFM,
             other => return Err(ConfigError::UnsupportedArchitecture(other.to_string())),
         };
 
