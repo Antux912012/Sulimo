@@ -1,0 +1,49 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<component type="desktop-application">
+  <id>io.github.antux912012.Sulimo</id>
+  <metadata_license>CC0-1.0</metadata_license>
+  <project_license>GPL-3.0-or-later</project_license>
+  <name>Súlimo</name>
+  <summary>Local, battery-disciplined LLM inference engine with GTK4 and Libadwaita</summary>
+  <description>
+    <p>
+      Súlimo (Arda's Breath) is an offline, privacy-first local LLM inference client built from the ground up in Rust for modern Linux desktops. Specifically engineered for resource-constrained laptops—from 5th to 10th generation Intel processors (Broadwell through Comet Lake / Ice Lake) with integrated GPUs—Súlimo enables seamless conversation with state-of-the-art open models without overheating or draining your battery.
+    </p>
+    <p>
+      Unlike conventional monolithic runtimes that aggressively spin CPU cores or keep GPUs at high power states, Súlimo features an asymmetric thermal and battery scheduling architecture:
+    </p>
+    <ul>
+      <li>Asymmetric Scheduling: Uses integrated GPU OpenCL FP16 SIMD8 hardware acceleration for prompt prefill, then shifts token decode to physical CPU cores with AVX2+FMA while allowing the iGPU to enter RC6 deep sleep.</li>
+      <li>Hard 5.2 GB Unified Memory Budget: Enforces a strict static arena ceiling, ensuring models run smoothly alongside the desktop without triggering Linux OOM killer or swapping on 8 GB host systems.</li>
+      <li>Zero-Allocation Hot Path: Zero heap allocation during autoregressive decoding, backed by high-performance Q4_0 SoA weights and quantized Q8_0 circular KV caches.</li>
+      <li>Smooth 60 FPS Native Interface: Responsive Libadwaita UI with frame-budget rendering that coalesces streaming tokens to prevent stutter, paired with intelligent scroll-pause detection.</li>
+      <li>Real-time Arda Telemetry Bar: Live monitoring of unified RAM consumption against budget limits, active execution phases, generation speeds (tokens/sec), and estimated system package power draw.</li>
+    </ul>
+    <p>
+      Everything runs 100% locally and offline on your computer. No cloud accounts, no subscriptions, no data telemetry, and no network dependencies.
+    </p>
+  </description>
+  <branding>
+    <color type="primary" scheme_preference="light">#3584e4</color>
+    <color type="primary" scheme_preference="dark">#1c71d8</color>
+  </branding>
+  <content_rating type="oars-1.1" />
+  <launchable type="desktop-id">io.github.antux912012.Sulimo.desktop</launchable>
+  <url type="homepage">https://antux912012.github.io/arda-tech/</url>
+  <url type="bugtracker">https://github.com/Antux912012/Sulimo/issues</url>
+  <url type="vcs-browser">https://github.com/Antux912012/Sulimo</url>
+  <developer id="io.github.antux912012">
+    <name>Antonio</name>
+  </developer>
+  <releases>
+    <release version="0.2.0" date="2026-10-21">
+      <description>
+        <p>
+          Version 0.2.0 release introducing the native GTK4 and Libadwaita client application,
+          hybrid asymmetric battery scheduling, OpenCL FP16 Gen8–11 acceleration, and
+          zero-copy GGUF static arena integration.
+        </p>
+      </description>
+    </release>
+  </releases>
+</component>

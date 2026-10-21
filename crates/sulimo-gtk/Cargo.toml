@@ -12,3 +12,6 @@ path = "src/main.rs"
 [dependencies]
 sulimo-core = { path = "../sulimo-core" }
 sulimo-engine = { path = "../sulimo-engine" }
+gtk4 = { version = "0.11", features = ["v4_16"] }
+libadwaita = { version = "0.9", features = ["v1_6"] }
+flume = "0.11"

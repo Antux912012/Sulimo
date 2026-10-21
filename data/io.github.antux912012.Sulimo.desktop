@@ -1,0 +1,10 @@
+[Desktop Entry]
+Name=Súlimo
+Comment=Local, battery-disciplined LLM inference engine with GTK4 and Libadwaita
+GenericName=Local AI Assistant
+Exec=sulimo
+Icon=io.github.antux912012.Sulimo
+Terminal=false
+Type=Application
+Categories=Utility;TextTools;
+StartupNotify=true
