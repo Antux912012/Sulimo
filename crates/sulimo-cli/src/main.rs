@@ -58,7 +58,21 @@ fn format_bytes_auto(bytes: u64) -> String {
 }
 
 fn main() -> Result<()> {
-    let args: Vec<String> = env::args().skip(1).collect();
+    let raw_args: Vec<String> = env::args().collect();
+    let bin_name = raw_args
+        .first()
+        .map(Path::new)
+        .and_then(|p| p.file_name())
+        .and_then(|f| f.to_str())
+        .unwrap_or("sulimo-cli");
+
+    let args: Vec<String> = if bin_name == "arda-probe" {
+        let mut a = vec!["probe".to_string()];
+        a.extend(raw_args.into_iter().skip(1));
+        a
+    } else {
+        raw_args.into_iter().skip(1).collect()
+    };
 
     if args.is_empty() || args.iter().any(|a| a == "-h" || a == "--help") {
         print_usage();
