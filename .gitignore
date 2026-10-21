@@ -1,7 +1,9 @@
 # Build artifacts
+target/
 build/
 bin/
 lib/
+*.deb
 *.o
 *.a
 *.so

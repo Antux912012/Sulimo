@@ -1,0 +1,18 @@
+[package]
+name = "sulimo-cli"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+
+[features]
+default = ["opencl"]
+opencl = ["sulimo-engine/opencl", "sulimo-ocl/opencl"]
+
+[dependencies]
+sulimo-core = { path = "../sulimo-core" }
+sulimo-cpu = { path = "../sulimo-cpu" }
+sulimo-ocl = { path = "../sulimo-ocl", default-features = false }
+sulimo-engine = { path = "../sulimo-engine", default-features = false }
+anyhow = "1.0.95"
+serde_json.workspace = true
