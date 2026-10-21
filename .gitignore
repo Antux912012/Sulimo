@@ -30,3 +30,4 @@ CMakeUserPresets.json
 *.swo
 *~
 .DS_Store
+*.tar.gz
