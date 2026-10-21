@@ -136,7 +136,7 @@ impl Engine {
         prompt: &str,
         params: &SamplingParams,
         cancel: &AtomicBool,
-        mut on_token: F,
+        on_token: F,
     ) -> Result<GenerationStats, EngineError>
     where
         F: FnMut(&str),
@@ -145,10 +145,27 @@ impl Engine {
         if prompt_tokens.is_empty() {
             return Ok(GenerationStats::default());
         }
+        self.generate_tokens_with_callback(&prompt_tokens, params, cancel, on_token)
+    }
+
+    /// Generates tokens from a pre-encoded token slice, streaming strings to a callback function.
+    pub fn generate_tokens_with_callback<F>(
+        &mut self,
+        prompt_tokens: &[u32],
+        params: &SamplingParams,
+        cancel: &AtomicBool,
+        mut on_token: F,
+    ) -> Result<GenerationStats, EngineError>
+    where
+        F: FnMut(&str),
+    {
+        if prompt_tokens.is_empty() {
+            return Ok(GenerationStats::default());
+        }
 
         let mut rng = fastrand::Rng::with_seed(params.seed);
         let mut past_tokens = Vec::with_capacity(prompt_tokens.len() + params.max_tokens);
-        past_tokens.extend_from_slice(&prompt_tokens);
+        past_tokens.extend_from_slice(prompt_tokens);
 
         let model_tensors = ModelTensors::build(&self.model);
 
@@ -269,7 +286,7 @@ impl Engine {
             }
         } else {
             // CPU Prefill path
-            for &token_id in &prompt_tokens {
+            for &token_id in prompt_tokens {
                 if cancel.load(Ordering::Relaxed) {
                     return Err(EngineError::Cancelled);
                 }
@@ -328,9 +345,10 @@ impl Engine {
                 decode_start = Instant::now();
             }
 
-            // Check EOS / EOT stop condition
-            if Some(next_tok) == self.tokenizer.eos_token_id
-                || Some(next_tok) == self.tokenizer.eot_token_id
+            // Check EOS / EOT stop condition (unless ignore_eos is set)
+            if !params.ignore_eos
+                && (Some(next_tok) == self.tokenizer.eos_token_id
+                    || Some(next_tok) == self.tokenizer.eot_token_id)
             {
                 break;
             }

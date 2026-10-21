@@ -166,9 +166,51 @@ fn main() -> Result<()> {
 
             run_inference(model_path, &prompt, requested_ctx, threads, &params)?;
         }
-        "bench" | "golden-compare" => {
+        "bench" => {
+            let mut model_path = None;
+            let mut json_mode = false;
+            let mut calibrate_t = false;
+            let mut requested_ctx = None;
+            let mut threads = None;
+            let mut synthetic = false;
+
+            let mut i = 1;
+            while i < args.len() {
+                match args[i].as_str() {
+                    "--json" => json_mode = true,
+                    "--calibrate-t" => calibrate_t = true,
+                    "--synthetic" => synthetic = true,
+                    "--ctx" => {
+                        if i + 1 < args.len() {
+                            requested_ctx = Some(args[i + 1].parse()?);
+                            i += 1;
+                        }
+                    }
+                    "-t" | "--threads" => {
+                        if i + 1 < args.len() {
+                            threads = Some(args[i + 1].parse()?);
+                            i += 1;
+                        }
+                    }
+                    other if !other.starts_with('-') && model_path.is_none() => {
+                        model_path = Some(other);
+                    }
+                    _ => {}
+                }
+                i += 1;
+            }
+
+            let path_ref = if synthetic {
+                None
+            } else {
+                model_path.map(Path::new)
+            };
+
+            run_bench(path_ref, json_mode, calibrate_t, requested_ctx, threads)?;
+        }
+        "golden-compare" => {
             eprintln!(
-                "Subcommand '{}' is planned for subsequent milestones (M6).",
+                "Subcommand '{}' is planned for subsequent milestones.",
                 args[0]
             );
             std::process::exit(1);
@@ -484,4 +526,145 @@ fn yes_no(v: bool) -> &'static str {
     } else {
         "no"
     }
+}
+
+fn run_bench(
+    model_path: Option<&Path>,
+    json_mode: bool,
+    calibrate_t: bool,
+    requested_ctx: Option<usize>,
+    threads: Option<usize>,
+) -> Result<()> {
+    let (target_path, is_temp) = match model_path {
+        Some(p) => (p.to_path_buf(), false),
+        None => {
+            if !json_mode {
+                println!("No model path provided; generating synthetic benchmark model (context 4096)...");
+            }
+            let p = sulimo_engine::bench::create_synthetic_benchmark_model(4096);
+            (p, true)
+        }
+    };
+
+    if !json_mode {
+        println!("============================================================");
+        println!("                 Súlimo Hardware Benchmark Suite");
+        println!("============================================================");
+        println!("Target Model: {}", target_path.display());
+        if let Some(ctx) = requested_ctx {
+            println!("Context Len:  {}", ctx);
+        }
+        if let Some(t) = threads {
+            println!("Threads:      {}", t);
+        }
+        println!("Calibrate T:  {}", if calibrate_t { "Yes" } else { "No" });
+        println!("Running benchmark suite...\n");
+    }
+
+    let report = sulimo_engine::bench::run_benchmark_suite(
+        &target_path,
+        requested_ctx,
+        threads,
+        calibrate_t,
+    )
+    .context("failed to run benchmark suite")?;
+
+    if is_temp {
+        let _ = std::fs::remove_file(&target_path);
+    }
+
+    if json_mode {
+        let json_str = serde_json::to_string_pretty(&report)?;
+        println!("{json_str}");
+    } else {
+        print_human_benchmark_report(&report);
+    }
+
+    Ok(())
+}
+
+fn print_human_benchmark_report(report: &sulimo_engine::BenchmarkReport) {
+    println!("=== Host Hardware ===");
+    println!("CPU:            {}", report.host.cpu_model);
+    println!(
+        "Cores:          {} physical, {} logical",
+        report.host.physical_cores, report.host.logical_cores
+    );
+    println!("GPU Device:     {}", report.host.gpu_device);
+    println!("GPU Driver:     {}", report.host.driver_version);
+
+    println!("\n=== Prefill Performance (Throughput & TTFT) ===");
+    println!(
+        "{:<12} {:<14} {:<16} {:<14} {:<12}",
+        "Tokens (N)", "TTFT (ms)", "Tok/sec", "Backend", "Energy (J)"
+    );
+    println!("{:-<70}", "");
+    for p in &report.prefill {
+        let energy_str = p
+            .energy_joules_total
+            .map(|j| format!("{j:.2} J"))
+            .unwrap_or_else(|| "n/a".to_string());
+        println!(
+            "{:<12} {:<14.2} {:<16.2} {:<14} {:<12}",
+            p.prompt_tokens, p.ttft_ms, p.prefill_tok_per_sec, p.backend, energy_str
+        );
+    }
+
+    println!("\n=== Decode Performance (N=1 Autoregressive) ===");
+    println!("Generated:      {} tokens", report.decode.tokens_generated);
+    println!(
+        "Decode Speed:   {:.2} tok/sec",
+        report.decode.decode_tok_per_sec
+    );
+    let rc6_str = report
+        .decode
+        .rc6_residency_pct
+        .map(|r| format!("{r:.1}%"))
+        .unwrap_or_else(|| "n/a".to_string());
+    println!("iGPU RC6 Sleep: {}", rc6_str);
+    let energy_per_tok = report
+        .decode
+        .energy_joules_per_token
+        .map(|e| format!("{e:.4} J/token"))
+        .unwrap_or_else(|| "n/a (RAPL restricted to root)".to_string());
+    println!("Energy / Token: {}", energy_per_tok);
+
+    println!("\n=== Memory Telemetry ===");
+    println!(
+        "Peak RSS (VmHWM): {:.2} GiB ({} bytes)",
+        report.memory.peak_rss_gib, report.memory.peak_rss_bytes
+    );
+    println!("Budget Limit:     5.20 GiB Unified RAM");
+    println!(
+        "Budget Status:    {}",
+        if report.memory.within_5_2gb_budget {
+            "PASS (within budget)"
+        } else {
+            "FAIL (exceeded 5.2GB)"
+        }
+    );
+
+    if let Some(ref sweep) = report.threshold_calibration {
+        println!("\n=== Threshold Calibration Sweep (N in {{1, 2, 4, 8, 16, 32}}) ===");
+        println!(
+            "{:<6} {:<16} {:<16} {:<12}",
+            "N", "CPU Time (ms)", "GPU Time (ms)", "Faster"
+        );
+        println!("{:-<52}", "");
+        for pt in sweep {
+            let gpu_str = pt
+                .gpu_prefill_ms
+                .map(|g| format!("{g:.2} ms"))
+                .unwrap_or_else(|| "n/a".to_string());
+            println!(
+                "{:<6} {:<16.2} {:<16} {:<12}",
+                pt.n, pt.cpu_prefill_ms, gpu_str, pt.faster_backend
+            );
+        }
+        println!(
+            "\nRecommended Threshold T: {}",
+            report.recommended_threshold_t
+        );
+    }
+    println!("============================================================\n");
 }

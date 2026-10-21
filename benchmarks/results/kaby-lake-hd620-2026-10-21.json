@@ -1,0 +1,85 @@
+{
+  "timestamp": "2026-10-21T10:09:05Z",
+  "host": {
+    "cpu_model": "Intel(R) Core(TM) i5-7200U CPU @ 2.50GHz",
+    "physical_cores": 2,
+    "logical_cores": 4,
+    "gpu_device": "Intel(R) HD Graphics 620",
+    "driver_version": "23.35.27191.9"
+  },
+  "model_path": "/tmp/sulimo_bench_19.gguf",
+  "context_length": 4096,
+  "prefill": [
+    {
+      "prompt_tokens": 128,
+      "prefill_tok_per_sec": 106716.73460131712,
+      "ttft_ms": 1.206806,
+      "backend": "GPU-OpenCL",
+      "energy_joules_total": null
+    },
+    {
+      "prompt_tokens": 512,
+      "prefill_tok_per_sec": 212473.43563320613,
+      "ttft_ms": 2.416164,
+      "backend": "GPU-OpenCL",
+      "energy_joules_total": null
+    },
+    {
+      "prompt_tokens": 2048,
+      "prefill_tok_per_sec": 196422.33218334836,
+      "ttft_ms": 10.437089,
+      "backend": "GPU-OpenCL",
+      "energy_joules_total": null
+    }
+  ],
+  "decode": {
+    "tokens_generated": 128,
+    "decode_tok_per_sec": 22826.67989535675,
+    "rc6_residency_pct": 60.0,
+    "energy_joules_per_token": null
+  },
+  "memory": {
+    "peak_rss_bytes": 98054144,
+    "peak_rss_gib": 0.09132003784179688,
+    "within_5_2gb_budget": true
+  },
+  "threshold_calibration": [
+    {
+      "n": 1,
+      "cpu_prefill_ms": 0.092364,
+      "gpu_prefill_ms": 1.0795679999999999,
+      "faster_backend": "CPU"
+    },
+    {
+      "n": 2,
+      "cpu_prefill_ms": 0.124855,
+      "gpu_prefill_ms": 0.784206,
+      "faster_backend": "CPU"
+    },
+    {
+      "n": 4,
+      "cpu_prefill_ms": 0.214904,
+      "gpu_prefill_ms": 0.9839880000000001,
+      "faster_backend": "CPU"
+    },
+    {
+      "n": 8,
+      "cpu_prefill_ms": 0.33132799999999996,
+      "gpu_prefill_ms": 0.794357,
+      "faster_backend": "CPU"
+    },
+    {
+      "n": 16,
+      "cpu_prefill_ms": 0.625908,
+      "gpu_prefill_ms": 0.835406,
+      "faster_backend": "CPU"
+    },
+    {
+      "n": 32,
+      "cpu_prefill_ms": 1.3568339999999999,
+      "gpu_prefill_ms": 1.106786,
+      "faster_backend": "GPU"
+    }
+  ],
+  "recommended_threshold_t": 32
+}

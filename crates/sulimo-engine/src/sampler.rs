@@ -21,6 +21,9 @@ pub struct SamplingParams {
     pub greedy: bool,
     /// Maximum number of tokens to generate.
     pub max_tokens: usize,
+    /// Whether to ignore EOS / EOT tokens (useful for benchmarking).
+    #[serde(default)]
+    pub ignore_eos: bool,
 }
 
 impl Default for SamplingParams {
@@ -33,6 +36,7 @@ impl Default for SamplingParams {
             seed: 42,
             greedy: false,
             max_tokens: 128,
+            ignore_eos: false,
         }
     }
 }

@@ -838,6 +838,7 @@ dependencies = [
  "fastrand",
  "half",
  "serde",
+ "serde_json",
  "sulimo-core",
  "sulimo-cpu",
  "sulimo-ocl",

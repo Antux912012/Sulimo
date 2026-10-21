@@ -17,3 +17,6 @@ half.workspace = true
 thiserror.workspace = true
 serde.workspace = true
 fastrand = "2.5.0"
+
+[dev-dependencies]
+serde_json.workspace = true

@@ -334,12 +334,8 @@ pub fn lookup_token_embedding_f16(
 ) {
     let tid = token_id as usize;
     match &tensor.data {
-        LoadedTensorData::Q4_0 {
-            scales,
-            quants,
-            num_blocks,
-        } => {
-            let blocks_per_row = *num_blocks;
+        LoadedTensorData::Q4_0 { scales, quants, .. } => {
+            let blocks_per_row = embd_dim / 32;
             let scales_stride = blocks_per_row * 2;
             let quants_stride = blocks_per_row * 16;
 
