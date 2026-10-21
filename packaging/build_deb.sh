@@ -46,15 +46,16 @@ Priority: optional
 Architecture: amd64
 Depends: libc6, libgtk-4-1, libadwaita-1-0
 Recommends: intel-opencl-icd | mesa-opencl-icd, ocl-icd-libopencl1
-Provides: arda-probe
+Provides: arda-probe, sulimo-cli
 Maintainer: Antonio <antux912012@users.noreply.github.com>
 Homepage: https://github.com/Antux912012/Sulimo
 Description: Sulimo (Arda's Breath) - Local LLM Engine & Hardware Telemetry
  High-performance, battery-disciplined local LLM inference engine optimized
  for Intel Gen8–10 legacy hardware (Broadwell through Comet Lake / Ice Lake).
  Features zero-copy GGUF static arena memory, asymmetric OpenCL FP16 SIMD8
- prompt prefill, AVX2 physical-core decode with iGPU RC6 deep sleep, and
- a responsive Libadwaita/GTK4 desktop interface.
+ prompt prefill, AVX2 physical-core decode with iGPU RC6 deep sleep,
+ a responsive Libadwaita/GTK4 desktop interface (sulimo), and an
+ interactive Antigravity-style terminal CLI (sulimo-cli).
 EOF
 
 DEB_PATH="${ROOT_DIR}/sulimo_${VERSION}_amd64.deb"
