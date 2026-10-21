@@ -37,6 +37,57 @@ pub fn rmsnorm_scalar(x: &[f32], weight: &[f32], eps: f32, out: &mut [f32]) {
     }
 }
 
+/// In-place Root Mean Square Layer Normalization for Gemma 2:
+///
+/// `y[i] = (x[i] / sqrt(mean(x^2) + eps)) * (1.0 + weight[i])`
+pub fn rmsnorm_gemma_scalar(x: &[f32], weight: &[f32], eps: f32, out: &mut [f32]) {
+    assert_eq!(x.len(), weight.len());
+    assert_eq!(x.len(), out.len());
+
+    let mut sum_sq = 0.0f32;
+    for &val in x {
+        sum_sq += val * val;
+    }
+
+    let mean = sum_sq / (x.len() as f32);
+    let scale = 1.0 / (mean + eps).sqrt();
+
+    for i in 0..x.len() {
+        out[i] = x[i] * scale * (1.0 + weight[i]);
+    }
+}
+
+/// In-place logit soft-capping for Gemma 2:
+///
+/// `x[i] = tanh(x[i] / cap) * cap`
+pub fn logit_softcap_scalar(logits: &mut [f32], cap: f32) {
+    if cap <= 0.0 {
+        return;
+    }
+    let inv_cap = 1.0 / cap;
+    for val in logits.iter_mut() {
+        *val = (*val * inv_cap).tanh() * cap;
+    }
+}
+
+/// GeGLU activation for Gemma 2:
+///
+/// `out[i] = gelu(gate[i]) * up[i]`
+/// with `gelu(x) = 0.5 * x * (1.0 + tanh(sqrt(2.0 / PI) * (x + 0.044715 * x^3)))`
+pub fn geglu_scalar(gate: &[f32], up: &[f32], out: &mut [f32]) {
+    assert_eq!(gate.len(), up.len());
+    assert_eq!(gate.len(), out.len());
+
+    const SQRT_2_OVER_PI: f32 = 0.797_884_6;
+    for i in 0..gate.len() {
+        let x = gate[i];
+        let cube = x * x * x;
+        let inner = SQRT_2_OVER_PI * (x + 0.044_715 * cube);
+        let gelu_x = 0.5 * x * (1.0 + inner.tanh());
+        out[i] = gelu_x * up[i];
+    }
+}
+
 /// Rotary Position Embedding (RoPE) application for a single attention head.
 pub fn rope_head_scalar(
     vec: &mut [f32],
@@ -216,6 +267,39 @@ pub fn causal_gqa_decode_scalar<FK, FV>(
     FK: Fn(usize) -> *const u8,
     FV: Fn(usize) -> *const u8,
 {
+    causal_gqa_decode_scalar_ext(
+        q,
+        get_k,
+        get_v,
+        context_len,
+        head_count,
+        head_count_kv,
+        head_dim,
+        scores_buf,
+        dequant_buf,
+        out,
+        None,
+    )
+}
+
+/// Extended Causal GQA decode scalar reference with optional logit soft-capping (Gemma 2).
+#[allow(clippy::too_many_arguments)]
+pub fn causal_gqa_decode_scalar_ext<FK, FV>(
+    q: &[f32],
+    get_k: FK,
+    get_v: FV,
+    context_len: usize,
+    head_count: usize,
+    head_count_kv: usize,
+    head_dim: usize,
+    scores_buf: &mut [f32],
+    dequant_buf: &mut [f32],
+    out: &mut [f32],
+    attn_softcap: Option<f32>,
+) where
+    FK: Fn(usize) -> *const u8,
+    FV: Fn(usize) -> *const u8,
+{
     let heads_per_kv = head_count / head_count_kv;
     let scale = 1.0 / (head_dim as f32).sqrt();
     let head_bytes_len = (head_dim / Q8_0_BLOCK_SIZE) * Q8_0_BLOCK_BYTES;
@@ -239,7 +323,13 @@ pub fn causal_gqa_decode_scalar<FK, FV>(
             for d in 0..head_dim {
                 dot += q_head[d] * dequant_buf[d];
             }
-            *score_pos = dot * scale;
+            let mut score = dot * scale;
+            if let Some(cap) = attn_softcap {
+                if cap > 0.0 {
+                    score = (score / cap).tanh() * cap;
+                }
+            }
+            *score_pos = score;
         }
 
         // 2. Softmax over context positions [0..context_len]
@@ -294,5 +384,45 @@ mod tests {
         let sum: f32 = x.iter().sum();
         assert!((sum - 1.0).abs() < 1e-5);
         assert!(x[2] > x[1] && x[1] > x[0]);
+    }
+
+    #[test]
+    fn test_rmsnorm_gemma_scalar() {
+        let x = [1.0f32, 2.0, 3.0, 4.0];
+        let w = [0.0f32; 4]; // (1.0 + w) = 1.0, should equal rmsnorm with w = 1.0
+        let mut out = [0.0f32; 4];
+        rmsnorm_gemma_scalar(&x, &w, 1e-5, &mut out);
+
+        let mut ref_out = [0.0f32; 4];
+        let ref_w = [1.0f32; 4];
+        rmsnorm_scalar(&x, &ref_w, 1e-5, &mut ref_out);
+
+        for i in 0..4 {
+            assert!((out[i] - ref_out[i]).abs() < 1e-6);
+        }
+    }
+
+    #[test]
+    fn test_logit_softcap_scalar() {
+        let mut logits = [1000.0f32, -1000.0, 0.0, 100.0];
+        logit_softcap_scalar(&mut logits, 50.0);
+        // tanh(20.0) * 50.0 ≈ 50.0
+        assert!(logits[0] <= 50.0 && logits[0] > 49.99);
+        // tanh(-20.0) * 50.0 ≈ -50.0
+        assert!(logits[1] >= -50.0 && logits[1] < -49.99);
+        assert_eq!(logits[2], 0.0);
+        // tanh(2.0) * 50.0 ≈ 48.2014
+        assert!((logits[3] - 48.2014).abs() < 1e-3);
+    }
+
+    #[test]
+    fn test_geglu_scalar() {
+        let gate = [0.0f32, 1.0, -1.0];
+        let up = [2.0f32, 3.0, 4.0];
+        let mut out = [0.0f32; 3];
+        geglu_scalar(&gate, &up, &mut out);
+        assert_eq!(out[0], 0.0); // gelu(0) = 0
+        assert!(out[1] > 0.0);
+        assert!(out[2] < 0.0);
     }
 }

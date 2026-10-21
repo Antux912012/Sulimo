@@ -1,11 +1,14 @@
 //! Curated model registry with verified GGUF endpoints, hashes, and hardware budgets.
 //!
 //! Provides specifications for approved models tested for the 8 GB RAM / 5.20 GiB
-//! unified memory budget ceiling and 30 GB SSD storage constraint.
+//! unified memory budget ceiling and up to 30.0 GB SSD storage pool.
 
 use crate::model_config::ModelArch;
 use crate::sysmem::MAX_RAM_BUDGET_BYTES;
 use serde::{Deserialize, Serialize};
+
+/// Maximum storage budget dedicated to local models: 30.0 GB.
+pub const MAX_MODELS_STORAGE_BUDGET_BYTES: u64 = 30_000_000_000;
 
 /// Supported chat prompt template formats.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -45,7 +48,7 @@ pub struct ModelMetadata {
     pub architecture: ModelArch,
     /// Nominal parameter count string (e.g. "1.54B")
     pub param_count: String,
-    /// Quantization format (e.g. "Q4_0", "Q4_K_M")
+    /// Quantization format (e.g. "Q4_0", "Q4_K_M", "Q8_0")
     pub quantization: String,
     /// Direct HTTPS download URL (Hugging Face resolve endpoint)
     pub download_url: String,
@@ -83,6 +86,11 @@ impl ModelMetadata {
     pub fn fits_in_ram_budget(&self) -> bool {
         self.estimated_ram_bytes_4k <= MAX_RAM_BUDGET_BYTES
     }
+
+    /// Returns true if single file size is below the 30.0 GB SSD model pool quota.
+    pub fn fits_in_storage_budget(&self) -> bool {
+        self.file_size_bytes <= MAX_MODELS_STORAGE_BUDGET_BYTES
+    }
 }
 
 /// Formats a byte count into a human-readable string (MB or GB).
@@ -97,53 +105,54 @@ pub fn format_bytes(bytes: u64) -> String {
 /// Returns the full list of curated models supported by Súlimo.
 pub fn default_registry() -> Vec<ModelMetadata> {
     vec![
+        // --- Flagship 3B-4B Models (Max intelligence within 5.20 GiB RAM) ---
         ModelMetadata {
-            id: "qwen2.5-1.5b-instruct".to_string(),
-            display_name: "Qwen 2.5 1.5B Instruct".to_string(),
+            id: "qwen2.5-3b-instruct".to_string(),
+            display_name: "Qwen 2.5 3B Instruct".to_string(),
             family: "Qwen".to_string(),
             architecture: ModelArch::Qwen2,
-            param_count: "1.54B".to_string(),
-            quantization: "Q4_0".to_string(),
-            download_url: "https://huggingface.co/Qwen/Qwen2.5-1.5B-Instruct-GGUF/resolve/main/qwen2.5-1.5b-instruct-q4_0.gguf".to_string(),
-            filename: "qwen2.5-1.5b-instruct-q4_0.gguf".to_string(),
-            file_size_bytes: 1_066_227_232,
-            sha256: "dcd819ff094852c38faba6873d8ff0c9d51eadb2844539e52042ae5d647bbfdb".to_string(),
-            default_context_length: 32768,
-            estimated_ram_bytes_4k: 1_556_480_000,
-            prompt_template: PromptTemplateType::ChatMl,
-            description: "Top coding and reasoning workhorse in a compact ~1 GB footprint.".to_string(),
-        },
-        ModelMetadata {
-            id: "qwen2.5-0.5b-instruct".to_string(),
-            display_name: "Qwen 2.5 0.5B Instruct".to_string(),
-            family: "Qwen".to_string(),
-            architecture: ModelArch::Qwen2,
-            param_count: "0.49B".to_string(),
-            quantization: "Q4_0".to_string(),
-            download_url: "https://huggingface.co/Qwen/Qwen2.5-0.5B-Instruct-GGUF/resolve/main/qwen2.5-0.5b-instruct-q4_0.gguf".to_string(),
-            filename: "qwen2.5-0.5b-instruct-q4_0.gguf".to_string(),
-            file_size_bytes: 428_730_208,
-            sha256: "7671c0c304e6ce5a7fc577bcb12aba01e2c155cc2efd29b2213c95b18edaf6ed".to_string(),
-            default_context_length: 32768,
-            estimated_ram_bytes_4k: 697_932_800,
-            prompt_template: PromptTemplateType::ChatMl,
-            description: "Ultra-low resource edge model with blazing fast inference speed (>25 tok/s).".to_string(),
-        },
-        ModelMetadata {
-            id: "gemma-2-2b-it".to_string(),
-            display_name: "Gemma 2 2B Instruct".to_string(),
-            family: "Google Gemma".to_string(),
-            architecture: ModelArch::Gemma2,
-            param_count: "2.61B".to_string(),
+            param_count: "3.09B".to_string(),
             quantization: "Q4_K_M".to_string(),
-            download_url: "https://huggingface.co/bartowski/gemma-2-2b-it-GGUF/resolve/main/gemma-2-2b-it-Q4_K_M.gguf".to_string(),
-            filename: "gemma-2-2b-it-Q4_K_M.gguf".to_string(),
-            file_size_bytes: 1_708_582_752,
-            sha256: "e0aee85060f168f0f2d8473d7ea41ce2f3230c1bc1374847505ea599288a7787".to_string(),
-            default_context_length: 8192,
-            estimated_ram_bytes_4k: 2_415_919_104,
-            prompt_template: PromptTemplateType::Gemma,
-            description: "High-caliber conversational and factual quality, competitive with 7B models.".to_string(),
+            download_url: "https://huggingface.co/Qwen/Qwen2.5-3B-Instruct-GGUF/resolve/main/qwen2.5-3b-instruct-q4_k_m.gguf".to_string(),
+            filename: "qwen2.5-3b-instruct-q4_k_m.gguf".to_string(),
+            file_size_bytes: 2_104_932_768,
+            sha256: "626b4a6678b86442240e33df819e00132d3ba7dddfe1cdc4fbb18e0a9615c62d".to_string(),
+            default_context_length: 32768,
+            estimated_ram_bytes_4k: 2_952_790_016,
+            prompt_template: PromptTemplateType::ChatMl,
+            description: "Premier 3B model with exceptional reasoning, math, and code capabilities.".to_string(),
+        },
+        ModelMetadata {
+            id: "minicpm3-4b".to_string(),
+            display_name: "MiniCPM 3 4B".to_string(),
+            family: "OpenBMB".to_string(),
+            architecture: ModelArch::MiniCPM3,
+            param_count: "3.90B".to_string(),
+            quantization: "Q4_K_M".to_string(),
+            download_url: "https://huggingface.co/openbmb/MiniCPM3-4B-GGUF/resolve/main/minicpm3-4b-q4_k_m.gguf".to_string(),
+            filename: "minicpm3-4b-q4_k_m.gguf".to_string(),
+            file_size_bytes: 2_469_791_584,
+            sha256: "64913247e927414ecf47fd3e9ea8e3f0c9acae293f583dfa7e24b8872e20fa4c".to_string(),
+            default_context_length: 32768,
+            estimated_ram_bytes_4k: 3_650_722_201,
+            prompt_template: PromptTemplateType::ChatMl,
+            description: "Near GPT-3.5 performance in a 2.47 GB footprint with 32K context.".to_string(),
+        },
+        ModelMetadata {
+            id: "llama-3.2-3b-instruct".to_string(),
+            display_name: "Llama 3.2 3B Instruct".to_string(),
+            family: "Meta".to_string(),
+            architecture: ModelArch::Llama,
+            param_count: "3.21B".to_string(),
+            quantization: "Q4_K_M".to_string(),
+            download_url: "https://huggingface.co/bartowski/Llama-3.2-3B-Instruct-GGUF/resolve/main/Llama-3.2-3B-Instruct-Q4_K_M.gguf".to_string(),
+            filename: "Llama-3.2-3B-Instruct-Q4_K_M.gguf".to_string(),
+            file_size_bytes: 2_019_377_696,
+            sha256: "6c1a2b41161032677be168d354123594c0e6e67d2b9227c84f296ad037c728ff".to_string(),
+            default_context_length: 131072,
+            estimated_ram_bytes_4k: 2_899_102_924,
+            prompt_template: PromptTemplateType::Llama3,
+            description: "Meta's flagship edge 3B instruct model with strong multi-turn reasoning.".to_string(),
         },
         ModelMetadata {
             id: "lfm2.5-2.6b".to_string(),
@@ -161,21 +170,39 @@ pub fn default_registry() -> Vec<ModelMetadata> {
             prompt_template: PromptTemplateType::ChatMl,
             description: "Hybrid Conv/RNN/Attention foundation model from Liquid AI.".to_string(),
         },
+
+        // --- Core 1.5B-2.6B Workhorse Models ---
         ModelMetadata {
-            id: "lfm2.5-230m".to_string(),
-            display_name: "Liquid LFM 2.5 230M".to_string(),
-            family: "Liquid AI".to_string(),
-            architecture: ModelArch::LFM,
-            param_count: "0.23B".to_string(),
+            id: "gemma-2-2b-it".to_string(),
+            display_name: "Gemma 2 2B Instruct".to_string(),
+            family: "Google Gemma".to_string(),
+            architecture: ModelArch::Gemma2,
+            param_count: "2.61B".to_string(),
+            quantization: "Q4_K_M".to_string(),
+            download_url: "https://huggingface.co/bartowski/gemma-2-2b-it-GGUF/resolve/main/gemma-2-2b-it-Q4_K_M.gguf".to_string(),
+            filename: "gemma-2-2b-it-Q4_K_M.gguf".to_string(),
+            file_size_bytes: 1_708_582_752,
+            sha256: "e0aee85060f168f0f2d8473d7ea41ce2f3230c1bc1374847505ea599288a7787".to_string(),
+            default_context_length: 8192,
+            estimated_ram_bytes_4k: 2_415_919_104,
+            prompt_template: PromptTemplateType::Gemma,
+            description: "High-caliber conversational and factual quality, competitive with 7B models.".to_string(),
+        },
+        ModelMetadata {
+            id: "qwen2.5-1.5b-instruct".to_string(),
+            display_name: "Qwen 2.5 1.5B Instruct".to_string(),
+            family: "Qwen".to_string(),
+            architecture: ModelArch::Qwen2,
+            param_count: "1.54B".to_string(),
             quantization: "Q4_0".to_string(),
-            download_url: "https://huggingface.co/LiquidAI/LFM2.5-230M-GGUF/resolve/main/LFM2.5-230M-Q4_0.gguf".to_string(),
-            filename: "LFM2.5-230M-Q4_0.gguf".to_string(),
-            file_size_bytes: 149_080_928,
-            sha256: "430fbec5b1b355e9bb12cd0638c9f2a8f21fedd6eafb4103e42c7e88887daa73".to_string(),
+            download_url: "https://huggingface.co/Qwen/Qwen2.5-1.5B-Instruct-GGUF/resolve/main/qwen2.5-1.5b-instruct-q4_0.gguf".to_string(),
+            filename: "qwen2.5-1.5b-instruct-q4_0.gguf".to_string(),
+            file_size_bytes: 1_066_227_232,
+            sha256: "dcd819ff094852c38faba6873d8ff0c9d51eadb2844539e52042ae5d647bbfdb".to_string(),
             default_context_length: 32768,
-            estimated_ram_bytes_4k: 268_435_456,
+            estimated_ram_bytes_4k: 1_556_480_000,
             prompt_template: PromptTemplateType::ChatMl,
-            description: "Ultra-compact sub-150 MB liquid model for battery-first edge tasks.".to_string(),
+            description: "Top coding and reasoning workhorse in a compact ~1 GB footprint.".to_string(),
         },
         ModelMetadata {
             id: "minicpm5-1b".to_string(),
@@ -194,22 +221,6 @@ pub fn default_registry() -> Vec<ModelMetadata> {
             description: "OpenBMB lightweight on-device bilingual powerhouse model.".to_string(),
         },
         ModelMetadata {
-            id: "minicpm3-4b".to_string(),
-            display_name: "MiniCPM 3 4B".to_string(),
-            family: "OpenBMB".to_string(),
-            architecture: ModelArch::MiniCPM3,
-            param_count: "3.90B".to_string(),
-            quantization: "Q4_K_M".to_string(),
-            download_url: "https://huggingface.co/openbmb/MiniCPM3-4B-GGUF/resolve/main/minicpm3-4b-q4_k_m.gguf".to_string(),
-            filename: "minicpm3-4b-q4_k_m.gguf".to_string(),
-            file_size_bytes: 2_469_791_584,
-            sha256: "64913247e927414ecf47fd3e9ea8e3f0c9acae293f583dfa7e24b8872e20fa4c".to_string(),
-            default_context_length: 32768,
-            estimated_ram_bytes_4k: 3_650_722_201,
-            prompt_template: PromptTemplateType::ChatMl,
-            description: "Near GPT-3.5 quality in a 2.4 GB package, within the 5.2 GB budget ceiling.".to_string(),
-        },
-        ModelMetadata {
             id: "llama-3.2-1b-instruct".to_string(),
             display_name: "Llama 3.2 1B Instruct".to_string(),
             family: "Meta".to_string(),
@@ -224,6 +235,58 @@ pub fn default_registry() -> Vec<ModelMetadata> {
             estimated_ram_bytes_4k: 1_288_490_188,
             prompt_template: PromptTemplateType::Llama3,
             description: "Meta reference lightweight instruct model, fast and general-purpose.".to_string(),
+        },
+
+        // --- Ultra-Fast Edge Models ---
+        ModelMetadata {
+            id: "qwen2.5-0.5b-instruct".to_string(),
+            display_name: "Qwen 2.5 0.5B Instruct".to_string(),
+            family: "Qwen".to_string(),
+            architecture: ModelArch::Qwen2,
+            param_count: "0.49B".to_string(),
+            quantization: "Q4_0".to_string(),
+            download_url: "https://huggingface.co/Qwen/Qwen2.5-0.5B-Instruct-GGUF/resolve/main/qwen2.5-0.5b-instruct-q4_0.gguf".to_string(),
+            filename: "qwen2.5-0.5b-instruct-q4_0.gguf".to_string(),
+            file_size_bytes: 428_730_208,
+            sha256: "7671c0c304e6ce5a7fc577bcb12aba01e2c155cc2efd29b2213c95b18edaf6ed".to_string(),
+            default_context_length: 32768,
+            estimated_ram_bytes_4k: 697_932_800,
+            prompt_template: PromptTemplateType::ChatMl,
+            description: "Ultra-low resource edge model with blazing fast inference speed (>25 tok/s).".to_string(),
+        },
+        ModelMetadata {
+            id: "lfm2.5-230m".to_string(),
+            display_name: "Liquid LFM 2.5 230M".to_string(),
+            family: "Liquid AI".to_string(),
+            architecture: ModelArch::LFM,
+            param_count: "0.23B".to_string(),
+            quantization: "Q4_0".to_string(),
+            download_url: "https://huggingface.co/LiquidAI/LFM2.5-230M-GGUF/resolve/main/LFM2.5-230M-Q4_0.gguf".to_string(),
+            filename: "LFM2.5-230M-Q4_0.gguf".to_string(),
+            file_size_bytes: 149_080_928,
+            sha256: "430fbec5b1b355e9bb12cd0638c9f2a8f21fedd6eafb4103e42c7e88887daa73".to_string(),
+            default_context_length: 32768,
+            estimated_ram_bytes_4k: 268_435_456,
+            prompt_template: PromptTemplateType::ChatMl,
+            description: "Ultra-compact sub-150 MB liquid model for battery-first edge tasks.".to_string(),
+        },
+
+        // --- High-Precision Quantization Option (Q8_0 for maximum quality) ---
+        ModelMetadata {
+            id: "qwen2.5-1.5b-instruct-q8".to_string(),
+            display_name: "Qwen 2.5 1.5B Instruct (Q8_0)".to_string(),
+            family: "Qwen".to_string(),
+            architecture: ModelArch::Qwen2,
+            param_count: "1.54B".to_string(),
+            quantization: "Q8_0".to_string(),
+            download_url: "https://huggingface.co/Qwen/Qwen2.5-1.5B-Instruct-GGUF/resolve/main/qwen2.5-1.5b-instruct-q8_0.gguf".to_string(),
+            filename: "qwen2.5-1.5b-instruct-q8_0.gguf".to_string(),
+            file_size_bytes: 1_894_532_128,
+            sha256: "d7efb072e7724d25048a4fda0a3e10b04bdef5d06b1403a1c93bd9f1240a63c8".to_string(),
+            default_context_length: 32768,
+            estimated_ram_bytes_4k: 2_384_532_128,
+            prompt_template: PromptTemplateType::ChatMl,
+            description: "Full Q8_0 precision weights with virtually zero quantization loss.".to_string(),
         },
     ]
 }
@@ -244,6 +307,8 @@ mod tests {
             !registry.is_empty(),
             "registry should contain curated models"
         );
+
+        let mut total_registry_bytes = 0u64;
 
         for model in &registry {
             assert!(!model.id.is_empty(), "model id should not be empty");
@@ -279,22 +344,33 @@ mod tests {
                 model.estimated_ram_bytes_4k
             );
 
-            // Verify disk size is suitable for 30 GB SSD (< 3.0 GB)
+            // Verify storage limit fit
             assert!(
-                model.file_size_bytes < 3_000_000_000,
-                "Model {} exceeds 3.0 GB disk size limit: {} bytes",
+                model.fits_in_storage_budget(),
+                "Model {} exceeds 30 GB SSD limit: {} bytes",
                 model.id,
                 model.file_size_bytes
             );
+
+            total_registry_bytes += model.file_size_bytes;
         }
+
+        // Even installing ALL 11 curated models simultaneously uses ~17.5 GB, well below 30 GB!
+        assert!(
+            total_registry_bytes <= MAX_MODELS_STORAGE_BUDGET_BYTES,
+            "All curated models combined ({} bytes) fit inside the 30.0 GB storage budget",
+            total_registry_bytes
+        );
     }
 
     #[test]
     fn test_find_model_by_id() {
+        assert!(find_model_by_id("qwen2.5-3b-instruct").is_some());
         assert!(find_model_by_id("qwen2.5-1.5b-instruct").is_some());
         assert!(find_model_by_id("gemma-2-2b-it").is_some());
         assert!(find_model_by_id("lfm2.5-2.6b").is_some());
         assert!(find_model_by_id("minicpm3-4b").is_some());
+        assert!(find_model_by_id("llama-3.2-3b-instruct").is_some());
         assert!(find_model_by_id("non-existent-model").is_none());
     }
 

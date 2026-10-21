@@ -7,7 +7,8 @@
 use std::arch::x86_64::*;
 
 use crate::scalar::{
-    matvec_f16_scalar, matvec_f32_scalar, matvec_q4_0_q8_0_scalar, rmsnorm_scalar,
+    matvec_f16_scalar, matvec_f32_scalar, matvec_q4_0_q8_0_scalar, rmsnorm_gemma_scalar,
+    rmsnorm_scalar,
 };
 use half::f16;
 use sulimo_core::repack::Q4_0_BLOCK_SIZE;
@@ -49,6 +50,22 @@ pub fn dispatch_rmsnorm(x: &[f32], weight: &[f32], eps: f32, out: &mut [f32]) {
     }
 
     rmsnorm_scalar(x, weight, eps, out);
+}
+
+/// Dispatches Gemma 2 RMSNorm (`x * (1.0 + w)`) to AVX2+FMA or scalar fallback.
+pub fn dispatch_rmsnorm_gemma(x: &[f32], weight: &[f32], eps: f32, out: &mut [f32]) {
+    #[cfg(target_arch = "x86_64")]
+    {
+        if is_x86_feature_detected!("avx2") && is_x86_feature_detected!("fma") {
+            unsafe {
+                // SAFETY: Feature flags dynamically verified via CPUID before invocation.
+                rmsnorm_gemma_avx2(x, weight, eps, out);
+            }
+            return;
+        }
+    }
+
+    rmsnorm_gemma_scalar(x, weight, eps, out);
 }
 
 /// Dispatches F32 matrix-vector multiplication to AVX2+FMA or scalar fallback.
@@ -208,6 +225,47 @@ pub unsafe fn rmsnorm_avx2(x: &[f32], weight: &[f32], eps: f32, out: &mut [f32])
     }
 }
 
+/// AVX2-accelerated Root Mean Square Layer Normalization for Gemma 2.
+///
+/// Multiplies the normalized vector by `(1.0 + weight)`.
+///
+/// # Safety
+/// Caller must ensure AVX2 and FMA are supported by the host CPU.
+#[cfg(target_arch = "x86_64")]
+#[target_feature(enable = "avx2,fma")]
+pub unsafe fn rmsnorm_gemma_avx2(x: &[f32], weight: &[f32], eps: f32, out: &mut [f32]) {
+    let len = x.len();
+    let chunks = len / 8;
+    let mut sum_sq_vec = _mm256_setzero_ps();
+
+    for i in 0..chunks {
+        let xv = _mm256_loadu_ps(x.as_ptr().add(i * 8));
+        sum_sq_vec = _mm256_fmadd_ps(xv, xv, sum_sq_vec);
+    }
+
+    let mut sum_sq = hsum_256(sum_sq_vec);
+    for &x_val in x.iter().take(len).skip(chunks * 8) {
+        sum_sq += x_val * x_val;
+    }
+
+    let mean = sum_sq / (len as f32);
+    let scale = 1.0 / (mean + eps).sqrt();
+    let scale_vec = _mm256_set1_ps(scale);
+    let ones_vec = _mm256_set1_ps(1.0);
+
+    for i in 0..chunks {
+        let xv = _mm256_loadu_ps(x.as_ptr().add(i * 8));
+        let wv = _mm256_loadu_ps(weight.as_ptr().add(i * 8));
+        let gemma_w = _mm256_add_ps(ones_vec, wv);
+        let normed = _mm256_mul_ps(_mm256_mul_ps(xv, scale_vec), gemma_w);
+        _mm256_storeu_ps(out.as_mut_ptr().add(i * 8), normed);
+    }
+
+    for i in (chunks * 8)..len {
+        out[i] = x[i] * scale * (1.0 + weight[i]);
+    }
+}
+
 /// AVX2-accelerated F32 matrix-vector multiplication.
 ///
 /// # Safety
@@ -335,5 +393,39 @@ mod tests {
             rel_err <= 1e-3,
             "AVX2 dot product relative error {rel_err} exceeds 1e-3 tolerance"
         );
+    }
+
+    #[test]
+    fn test_avx2_vs_scalar_rmsnorm_gemma() {
+        if !is_x86_feature_detected!("avx2") || !is_x86_feature_detected!("fma") {
+            println!("Skipping AVX2 test: CPU does not support AVX2+FMA");
+            return;
+        }
+
+        let len = 64;
+        let mut x = vec![0.0f32; len];
+        let mut weight = vec![0.0f32; len];
+        for i in 0..len {
+            x[i] = ((i as f32) * 0.1).sin();
+            weight[i] = ((i as f32) * 0.05).cos();
+        }
+
+        let mut out_scalar = vec![0.0f32; len];
+        rmsnorm_gemma_scalar(&x, &weight, 1e-5, &mut out_scalar);
+
+        let mut out_avx2 = vec![0.0f32; len];
+        unsafe {
+            rmsnorm_gemma_avx2(&x, &weight, 1e-5, &mut out_avx2);
+        }
+
+        for i in 0..len {
+            let diff = (out_scalar[i] - out_avx2[i]).abs();
+            assert!(
+                diff < 1e-5,
+                "AVX2 vs scalar Gemma RMSNorm mismatch at index {i}: scalar={}, avx2={}",
+                out_scalar[i],
+                out_avx2[i]
+            );
+        }
     }
 }

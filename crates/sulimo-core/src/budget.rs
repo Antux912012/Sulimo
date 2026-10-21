@@ -212,6 +212,10 @@ mod tests {
             bos_token_id: None,
             eos_token_id: None,
             pre_tokenizer: "default".to_string(),
+            sliding_window: None,
+            attn_logit_softcapping: None,
+            final_logit_softcapping: None,
+            scale_emb: None,
         };
 
         let plan = MemoryBudget::plan(&gguf, &config, Some(2048)).expect("plan must fit budget");

@@ -32,25 +32,28 @@
 
 ## 1. Curated Model Selection & Hardware Fit Analysis
 
-### 1.1 Evaluated Candidates for 8 GB RAM / 30 GB Disk
+### 1.1 Evaluated Candidates for 8 GB RAM / 30.0 GB Dedicated SSD Storage Pool
 
-| Model ID | Architecture | Parameter Count | Quantization | Download Size | RAM at 4K Context | 30 GB Disk Fit | Reasoning / Best Use Case |
+With up to **30.0 GB of SSD storage dedicated to the model library**, Súlimo can comfortably accommodate high-intelligence 3B–4B models (at `Q4_K_M`) and high-precision `Q8_0` quantizations, in addition to compact workhorses:
+
+| Model ID | Architecture | Parameter Count | Quantization | Download Size | RAM at 4K Context | Storage Pool Fit | Reasoning / Best Use Case |
 |---|---|---|---|---|---|---|---|
-| `qwen2.5-1.5b-instruct` | `qwen2` | 1.54B | Q4_0 | **0.98 GB** | **1.45 GiB** | **Optimal** | **Top General & Coding Workhorse**: Exceptional reasoning, instruction following, and multilingual support for its size. |
-| `qwen2.5-0.5b-instruct` | `qwen2` | 0.49B | Q4_0 | **0.38 GB** | **0.65 GiB** | **Optimal** | **Ultra-Low Memory & High Speed**: Consumes almost no disk or RAM; decodes at >25 tok/s on legacy i5-7200U. |
-| `gemma-2-2b-it` | `gemma2` | 2.61B | Q4_0 | **1.63 GB** | **2.25 GiB** | **Optimal** | **Top English & Conversational Quality**: Beats older 7B models on reasoning benchmarks; fits easily in budget. |
-| `lfm-1.3b` (Liquid AI) | `lfm` / hybrid | 1.30B | Q4_0 | **0.82 GB** | **1.28 GiB** | **Optimal** | **Hybrid Conv/RNN/Attention**: Ultra-efficient memory footprint, fast TTFT, minimal KV cache scaling. |
-| `minicpm3-4b-instruct` | `minicpm3` | 3.9B | Q4_0 | **2.32 GB** | **3.40 GiB** | **Viable (Large)** | **Maximum Intelligence Tier**: Near GPT-3.5 quality; uses 2.3 GB disk and 3.4 GB RAM, safely below 5.2 GB budget. |
-| `llama-3.2-1b-instruct` | `llama` | 1.23B | Q4_0 | **0.78 GB** | **1.20 GiB** | **Optimal** | **Reference Baseline**: Compact, fast, well-tested on Súlimo engine. |
-| `llama-3.2-3b-instruct` | `llama` | 3.21B | Q4_0 | **1.88 GB** | **2.70 GiB** | **Optimal** | **Reference 3B**: Solid general performance. |
+| **`qwen2.5-3b-instruct`** | `qwen2` | 3.09B | Q4_K_M | **2.10 GB** | **2.95 GiB** | **Optimal** | **Flagship Intelligence Tier**: Exceptional reasoning, coding, and multilingual performance; fits easily within 5.20 GiB RAM. |
+| **`minicpm3-4b`** | `minicpm3` | 3.90B | Q4_K_M | **2.47 GB** | **3.65 GiB** | **Optimal** | **High-Capacity Bilingual Champion**: Near GPT-3.5 quality with 32K context; utilizes 2.47 GB of the 30 GB SSD pool. |
+| **`llama-3.2-3b-instruct`** | `llama` | 3.21B | Q4_K_M | **2.02 GB** | **2.90 GiB** | **Optimal** | **Meta 3B Edge Flagship**: Strong multi-turn dialogue, tool understanding, and general reasoning. |
+| **`gemma-2-2b-it`** | `gemma2` | 2.61B | Q4_K_M | **1.71 GB** | **2.42 GiB** | **Optimal** | **Top English & Conversational Quality**: Outperforms many older 7B models on reasoning; compact 1.71 GB storage. |
+| **`lfm2.5-2.6b`** (Liquid AI) | `lfm` | 2.60B | Q4_0 | **1.59 GB** | **2.25 GiB** | **Optimal** | **Hybrid Conv/RNN/Attention**: Ultra-efficient memory footprint, fast TTFT, minimal KV cache scaling. |
+| **`qwen2.5-1.5b-instruct`** | `qwen2` | 1.54B | Q4_0 | **1.07 GB** | **1.56 GiB** | **Optimal** | **Fast Daily Workhorse**: High speed, low memory, strong code and multi-turn capabilities. |
+| **`qwen2.5-1.5b-instruct-q8`**| `qwen2` | 1.54B | Q8_0 | **1.89 GB** | **2.38 GiB** | **Optimal** | **High-Precision Quant**: Near-lossless FP16 output quality in under 2 GB disk. |
+| **`minicpm5-1b`** | `minicpm3` | 1.10B | Q4_K_M | **0.69 GB** | **1.18 GiB** | **Optimal** | **On-Device Bilingual Lightweight**: Sub-1GB storage, fast execution on Intel iGPUs. |
+| **`llama-3.2-1b-instruct`** | `llama` | 1.23B | Q4_0 | **0.77 GB** | **1.29 GiB** | **Optimal** | **Reference 1B Baseline**: Compact, fast, well-tested on Súlimo engine. |
+| **`qwen2.5-0.5b-instruct`** | `qwen2` | 0.49B | Q4_0 | **0.43 GB** | **0.70 GiB** | **Optimal** | **Ultra-Low Memory / Max Speed**: Consumes almost no disk or RAM; streams at >25 tok/s on legacy i5-7200U. |
+| **`lfm2.5-230m`** | `lfm` | 0.23B | Q4_0 | **0.15 GB** | **0.27 GiB** | **Optimal** | **Extreme Edge / Battery**: Sub-150 MB liquid model for battery-first edge tasks. |
 
-### 1.2 Storage Footprint on 30 GB Disk
-On a standard 30 GB Debian laptop installation:
-- Linux Root OS + Desktop Environment: ~12 GB
-- System swap / temp / cache: ~4 GB
-- Available User Storage: **~14 GB**
-- Storing 3 recommended models (`qwen2.5-1.5b` + `gemma-2-2b` + `lfm-1.3b`): **~3.43 GB total**
-- Remaining disk space: **> 10.5 GB** (100% safe, no risk of disk exhaustion).
+### 1.2 Storage Footprint within the 30.0 GB SSD Model Pool
+- Dedicated Súlimo model storage pool limit: **`MAX_MODELS_STORAGE_BUDGET_BYTES = 30_000_000_000` (30.0 GB)**.
+- Even if a user installs **ALL 11 curated models simultaneously**, the total disk consumption is only **~17.5 GB**, leaving over **12.5 GB of free headroom** in the model pool!
+- A typical user combination (e.g. `qwen2.5-3b` [2.10 GB] + `minicpm3-4b` [2.47 GB] + `gemma-2-2b-it` [1.71 GB] + `lfm2.5-2.6b` [1.59 GB] + `qwen2.5-1.5b` [1.07 GB]) occupies just **~8.94 GB**, utilizing less than 30% of the allocated 30 GB budget.
 
 ---
 

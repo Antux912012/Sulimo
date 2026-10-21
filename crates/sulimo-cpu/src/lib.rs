@@ -9,9 +9,11 @@ pub mod topology;
 
 pub use avx2::{
     dispatch_matvec_f16, dispatch_matvec_f32, dispatch_matvec_q4_0_q8_0, dispatch_rmsnorm,
+    dispatch_rmsnorm_gemma,
 };
 pub use scalar::{
-    causal_gqa_decode_scalar, matvec_f16_scalar, matvec_f32_scalar, matvec_q4_0_q8_0_scalar,
+    causal_gqa_decode_scalar, causal_gqa_decode_scalar_ext, geglu_scalar, logit_softcap_scalar,
+    matvec_f16_scalar, matvec_f32_scalar, matvec_q4_0_q8_0_scalar, rmsnorm_gemma_scalar,
     rmsnorm_scalar, rope_head_scalar, softmax_scalar, swiglu_scalar, vec_dot_q4_0_q8_0_scalar,
     RopeMode,
 };

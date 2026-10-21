@@ -9,8 +9,12 @@ use sulimo_core::model_config::{ModelArch, ModelConfig};
 use sulimo_core::repack::{dequantize_q4_0_soa, Q4_0_BLOCK_SIZE};
 use sulimo_cpu::avx2::{
     dispatch_matvec_f16, dispatch_matvec_f32, dispatch_matvec_q4_0_q8_0, dispatch_rmsnorm,
+    dispatch_rmsnorm_gemma,
 };
-use sulimo_cpu::scalar::{causal_gqa_decode_scalar, rope_head_scalar, swiglu_scalar, RopeMode};
+use sulimo_cpu::scalar::{
+    causal_gqa_decode_scalar_ext, geglu_scalar, logit_softcap_scalar, rope_head_scalar,
+    swiglu_scalar, RopeMode,
+};
 use sulimo_cpu::thread_pool::ThreadPool;
 
 /// Pre-resolved tensor references for a single transformer layer to avoid hash lookups and string allocations.
@@ -24,6 +28,13 @@ pub struct LayerTensors<'a> {
     pub ffn_gate: &'a LoadedTensor,
     pub ffn_up: &'a LoadedTensor,
     pub ffn_down: &'a LoadedTensor,
+    pub attn_q_bias: Option<&'a LoadedTensor>,
+    pub attn_k_bias: Option<&'a LoadedTensor>,
+    pub attn_v_bias: Option<&'a LoadedTensor>,
+    pub post_attn_norm: Option<&'a LoadedTensor>,
+    pub post_ffn_norm: Option<&'a LoadedTensor>,
+    pub attn_q_norm: Option<&'a LoadedTensor>,
+    pub attn_k_norm: Option<&'a LoadedTensor>,
 }
 
 /// Pre-resolved tensor index across the full model ($NOALLOC).
@@ -85,6 +96,16 @@ impl<'a> ModelTensors<'a> {
                 .get(&format!("blk.{l}.ffn_down.weight"))
                 .unwrap();
 
+            let attn_q_bias = model.tensors.get(&format!("blk.{l}.attn_q.bias"));
+            let attn_k_bias = model.tensors.get(&format!("blk.{l}.attn_k.bias"));
+            let attn_v_bias = model.tensors.get(&format!("blk.{l}.attn_v.bias"));
+            let post_attn_norm = model
+                .tensors
+                .get(&format!("blk.{l}.post_attention_norm.weight"));
+            let post_ffn_norm = model.tensors.get(&format!("blk.{l}.post_ffn_norm.weight"));
+            let attn_q_norm = model.tensors.get(&format!("blk.{l}.attn_q_norm.weight"));
+            let attn_k_norm = model.tensors.get(&format!("blk.{l}.attn_k_norm.weight"));
+
             layers.push(LayerTensors {
                 attn_norm,
                 attn_q,
@@ -95,6 +116,13 @@ impl<'a> ModelTensors<'a> {
                 ffn_gate,
                 ffn_up,
                 ffn_down,
+                attn_q_bias,
+                attn_k_bias,
+                attn_v_bias,
+                post_attn_norm,
+                post_ffn_norm,
+                attn_q_norm,
+                attn_k_norm,
             });
         }
 
@@ -179,11 +207,21 @@ pub fn forward_token<'s>(
 
     // 1. Embedding lookup: x = token_embd[token_id]
     lookup_token_embedding(tensors.token_embd, embd, token_id, &mut scratch.x);
+    if cfg.arch == ModelArch::Gemma2 {
+        let scale = (embd as f32).sqrt();
+        for val in scratch.x.iter_mut() {
+            *val *= scale;
+        }
+    } else if let Some(scale) = cfg.scale_emb {
+        for val in scratch.x.iter_mut() {
+            *val *= scale;
+        }
+    }
 
     // 2. Transformer layers loop
     for (l, layer) in tensors.layers.iter().enumerate() {
         // Attention RMSNorm: h = rmsnorm(x, eps) * attn_norm
-        apply_rmsnorm(layer.attn_norm, &scratch.x, eps, &mut scratch.h);
+        apply_rmsnorm(cfg.arch, layer.attn_norm, &scratch.x, eps, &mut scratch.h);
 
         // Quantize h to Q8_0 for projection dot products
         quantize_f32_to_q8_0(&scratch.h, &mut scratch.q8_buf_embd);
@@ -206,6 +244,31 @@ pub fn forward_token<'s>(
             &scratch.q8_buf_embd,
             &scratch.h,
             &mut scratch.v,
+        );
+
+        // Optional QKV biases (Qwen2)
+        add_bias(layer.attn_q_bias, &mut scratch.q);
+        add_bias(layer.attn_k_bias, &mut scratch.k);
+        add_bias(layer.attn_v_bias, &mut scratch.v);
+
+        // Optional QK-Norm (MiniCPM)
+        apply_head_norms(
+            cfg.arch,
+            layer.attn_q_norm,
+            &mut scratch.q,
+            cfg.head_count,
+            cfg.head_dim,
+            eps,
+            &mut scratch.dequant_buf,
+        );
+        apply_head_norms(
+            cfg.arch,
+            layer.attn_k_norm,
+            &mut scratch.k,
+            cfg.head_count_kv,
+            cfg.head_dim,
+            eps,
+            &mut scratch.dequant_buf,
         );
 
         // Apply RoPE rotation to Q and K
@@ -241,7 +304,7 @@ pub fn forward_token<'s>(
 
         // Causal GQA decode attention with zero heap allocations ($NOALLOC)
         let context_len = pos + 1;
-        causal_gqa_decode_scalar(
+        causal_gqa_decode_scalar_ext(
             &scratch.q,
             |p| kv_cache.key_ptr(l, p),
             |p| kv_cache.value_ptr(l, p),
@@ -252,6 +315,7 @@ pub fn forward_token<'s>(
             &mut scratch.scores_buf,
             &mut scratch.dequant_buf,
             &mut scratch.attn_out,
+            cfg.attn_logit_softcapping,
         );
 
         // Attention output projection: Wo · a
@@ -263,18 +327,26 @@ pub fn forward_token<'s>(
             &mut scratch.h,
         );
 
-        // Residual addition: x = x + Wo · a
-        for i in 0..embd {
-            scratch.x[i] += scratch.h[i];
+        // Optional post-attention norm (Gemma 2)
+        if let Some(post_norm) = layer.post_attn_norm {
+            apply_rmsnorm(cfg.arch, post_norm, &scratch.h, eps, &mut scratch.attn_out);
+            for i in 0..embd {
+                scratch.x[i] += scratch.attn_out[i];
+            }
+        } else {
+            // Residual addition: x = x + Wo · a
+            for i in 0..embd {
+                scratch.x[i] += scratch.h[i];
+            }
         }
 
         // FFN RMSNorm: h = rmsnorm(x, eps) * ffn_norm
-        apply_rmsnorm(layer.ffn_norm, &scratch.x, eps, &mut scratch.h);
+        apply_rmsnorm(cfg.arch, layer.ffn_norm, &scratch.x, eps, &mut scratch.h);
 
         // Quantize h to Q8_0 for FFN projections
         quantize_f32_to_q8_0(&scratch.h, &mut scratch.q8_buf_embd);
 
-        // SwiGLU projections: gate = Wgate · h, up = Wup · h
+        // FFN projections: gate = Wgate · h, up = Wup · h
         apply_matvec(
             layer.ffn_gate,
             &scratch.q8_buf_embd,
@@ -288,9 +360,14 @@ pub fn forward_token<'s>(
             &mut scratch.ffn_up,
         );
 
-        swiglu_scalar(&scratch.ffn_gate, &scratch.ffn_up, &mut scratch.ffn_swiglu);
+        // GeGLU for Gemma 2, SwiGLU for others
+        if cfg.arch == ModelArch::Gemma2 {
+            geglu_scalar(&scratch.ffn_gate, &scratch.ffn_up, &mut scratch.ffn_swiglu);
+        } else {
+            swiglu_scalar(&scratch.ffn_gate, &scratch.ffn_up, &mut scratch.ffn_swiglu);
+        }
 
-        // Down projection: Wdown · swiglu
+        // Down projection: Wdown · FFN_activation
         quantize_f32_to_q8_0(&scratch.ffn_swiglu, &mut scratch.q8_buf_ffn);
         apply_matvec(
             layer.ffn_down,
@@ -299,14 +376,28 @@ pub fn forward_token<'s>(
             &mut scratch.ffn_down,
         );
 
-        // Residual addition: x = x + ffn_down
-        for i in 0..embd {
-            scratch.x[i] += scratch.ffn_down[i];
+        // Optional post-FFN norm (Gemma 2)
+        if let Some(post_ffn) = layer.post_ffn_norm {
+            apply_rmsnorm(cfg.arch, post_ffn, &scratch.ffn_down, eps, &mut scratch.h);
+            for i in 0..embd {
+                scratch.x[i] += scratch.h[i];
+            }
+        } else {
+            // Residual addition: x = x + ffn_down
+            for i in 0..embd {
+                scratch.x[i] += scratch.ffn_down[i];
+            }
         }
     }
 
     // 3. Final RMSNorm: x = rmsnorm(x, eps) * output_norm
-    apply_rmsnorm(tensors.output_norm, &scratch.x, eps, &mut scratch.h);
+    apply_rmsnorm(
+        cfg.arch,
+        tensors.output_norm,
+        &scratch.x,
+        eps,
+        &mut scratch.h,
+    );
 
     // 4. Logits projection: Wout · h
     quantize_f32_to_q8_0(&scratch.h, &mut scratch.q8_buf_embd);
@@ -316,6 +407,11 @@ pub fn forward_token<'s>(
         &scratch.h,
         &mut scratch.logits,
     );
+
+    // Optional final logit softcapping (Gemma 2)
+    if let Some(cap) = cfg.final_logit_softcapping {
+        logit_softcap_scalar(&mut scratch.logits, cap);
+    }
 
     &scratch.logits
 }
@@ -353,13 +449,58 @@ pub fn lookup_token_embedding(
     }
 }
 
-fn apply_rmsnorm(tensor: &LoadedTensor, x: &[f32], eps: f32, out: &mut [f32]) {
+fn add_bias(tensor: Option<&LoadedTensor>, vec: &mut [f32]) {
+    if let Some(t) = tensor {
+        if let LoadedTensorData::Raw(slice) = &t.data {
+            let raw_f32: &[f32] = unsafe {
+                std::slice::from_raw_parts(slice.as_ptr() as *const f32, slice.size() / 4)
+            };
+            let len = vec.len().min(raw_f32.len());
+            for i in 0..len {
+                vec[i] += raw_f32[i];
+            }
+        }
+    }
+}
+
+fn apply_head_norms(
+    arch: ModelArch,
+    norm_tensor: Option<&LoadedTensor>,
+    vec: &mut [f32],
+    head_count: usize,
+    head_dim: usize,
+    eps: f32,
+    buf: &mut [f32],
+) {
+    if let Some(t) = norm_tensor {
+        if let LoadedTensorData::Raw(slice) = &t.data {
+            let weights: &[f32] = unsafe {
+                std::slice::from_raw_parts(slice.as_ptr() as *const f32, slice.size() / 4)
+            };
+            for h in 0..head_count {
+                let head = &mut vec[h * head_dim..(h + 1) * head_dim];
+                buf[..head_dim].copy_from_slice(head);
+                if arch == ModelArch::Gemma2 {
+                    dispatch_rmsnorm_gemma(&buf[..head_dim], weights, eps, head);
+                } else {
+                    dispatch_rmsnorm(&buf[..head_dim], weights, eps, head);
+                }
+            }
+        }
+    }
+}
+
+fn apply_rmsnorm(arch: ModelArch, tensor: &LoadedTensor, x: &[f32], eps: f32, out: &mut [f32]) {
     match &tensor.data {
         LoadedTensorData::Raw(slice) => {
             let raw_f32: &[f32] = unsafe {
                 std::slice::from_raw_parts(slice.as_ptr() as *const f32, slice.size() / 4)
             };
-            dispatch_rmsnorm(x, raw_f32, eps, out);
+            if arch == ModelArch::Gemma2 {
+                dispatch_rmsnorm_gemma(x, raw_f32, eps, out);
+            } else {
+                dispatch_rmsnorm(x, raw_f32, eps, out);
+            }
         }
         _ => panic!("RMSNorm weight must be float"),
     }

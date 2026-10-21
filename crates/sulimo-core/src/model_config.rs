@@ -72,6 +72,10 @@ pub struct ModelConfig {
     pub bos_token_id: Option<u32>,
     pub eos_token_id: Option<u32>,
     pub pre_tokenizer: String,
+    pub sliding_window: Option<usize>,
+    pub attn_logit_softcapping: Option<f32>,
+    pub final_logit_softcapping: Option<f32>,
+    pub scale_emb: Option<f32>,
 }
 
 impl ModelConfig {
@@ -151,6 +155,39 @@ impl ModelConfig {
             .unwrap_or("default")
             .to_string();
 
+        let sliding_window = gguf
+            .get_u32(&format!("{prefix}.attention.sliding_window"))
+            .or_else(|| gguf.get_u32(&format!("{prefix}.attention.sliding_window_size")))
+            .map(|v| v as usize);
+
+        let attn_logit_softcapping = gguf
+            .get_f32(&format!("{prefix}.attention.attn_logit_softcapping"))
+            .or_else(|| {
+                if arch == ModelArch::Gemma2 {
+                    Some(50.0)
+                } else {
+                    None
+                }
+            });
+
+        let final_logit_softcapping = gguf
+            .get_f32(&format!("{prefix}.final_logit_softcapping"))
+            .or_else(|| {
+                if arch == ModelArch::Gemma2 {
+                    Some(30.0)
+                } else {
+                    None
+                }
+            });
+
+        let scale_emb = gguf.get_f32(&format!("{prefix}.scale_emb")).or_else(|| {
+            if arch == ModelArch::MiniCPM3 {
+                Some(12.0)
+            } else {
+                None
+            }
+        });
+
         Ok(Self {
             arch,
             context_length,
@@ -167,6 +204,10 @@ impl ModelConfig {
             bos_token_id,
             eos_token_id,
             pre_tokenizer,
+            sliding_window,
+            attn_logit_softcapping,
+            final_logit_softcapping,
+            scale_emb,
         })
     }
 

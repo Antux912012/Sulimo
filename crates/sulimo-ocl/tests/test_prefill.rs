@@ -333,6 +333,10 @@ fn test_m3b_full_layer_prefill_and_zero_spin_proof() {
         bos_token_id: None,
         eos_token_id: None,
         pre_tokenizer: "default".to_string(),
+        sliding_window: None,
+        attn_logit_softcapping: None,
+        final_logit_softcapping: None,
+        scale_emb: None,
     };
 
     // Calculate memory requirements
@@ -918,6 +922,10 @@ fn test_m3b_prefill_throughput_benchmark() {
         bos_token_id: None,
         eos_token_id: None,
         pre_tokenizer: "default".to_string(),
+        sliding_window: None,
+        attn_logit_softcapping: None,
+        final_logit_softcapping: None,
+        scale_emb: None,
     };
 
     let q_dim = head_count * head_dim;
