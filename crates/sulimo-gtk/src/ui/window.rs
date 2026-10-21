@@ -44,7 +44,13 @@ impl SulimoWindow {
         // Open Model Button
         let open_model_btn = Button::builder()
             .icon_name("document-open-symbolic")
-            .tooltip_text("Load GGUF model")
+            .tooltip_text("Open local GGUF file")
+            .build();
+
+        // Manage Models Button
+        let manage_models_btn = Button::builder()
+            .icon_name("folder-download-symbolic")
+            .tooltip_text("Manage & Download Models (30 GB SSD Pool)")
             .build();
 
         // New Chat Button
@@ -59,6 +65,7 @@ impl SulimoWindow {
             .tooltip_text("About Súlimo")
             .build();
 
+        header_bar.pack_start(&manage_models_btn);
         header_bar.pack_start(&open_model_btn);
         header_bar.pack_start(&new_chat_btn);
         header_bar.pack_end(&about_btn);
@@ -127,7 +134,32 @@ impl SulimoWindow {
             });
         });
 
-        // 6. Wire New Chat Button
+        // 6. Wire Manage Models Dialog
+        let window_weak_models = window.downgrade();
+        let cmd_tx_models = cmd_tx.clone();
+        let toast_overlay_models = toast_overlay.clone();
+
+        manage_models_btn.connect_clicked(move |_| {
+            let Some(win) = window_weak_models.upgrade() else {
+                return;
+            };
+
+            let cmd_tx = cmd_tx_models.clone();
+            let toast_overlay = toast_overlay_models.clone();
+
+            crate::ui::ModelManagerDialog::new(Some(win.upcast_ref()), move |path| {
+                let toast = Toast::new(&format!("Loading {}...", path.display()));
+                toast.set_timeout(3);
+                toast_overlay.add_toast(toast);
+
+                let _ = cmd_tx.send(Cmd::Load {
+                    path,
+                    requested_ctx: None,
+                });
+            });
+        });
+
+        // 7. Wire New Chat Button
         let chat_view_clear = Rc::clone(&chat_view);
         let toast_overlay_clear = toast_overlay.clone();
         new_chat_btn.connect_clicked(move |_| {
@@ -296,6 +328,18 @@ impl SulimoWindow {
                 }
             }
         });
+
+        // 11. Auto-load first installed model if available in local store
+        if let Ok(store) = sulimo_core::model_manager::ModelStore::new(None) {
+            if let Ok(installed) = store.list_installed_models() {
+                if let Some(first) = installed.first() {
+                    let _ = cmd_tx.send(Cmd::Load {
+                        path: first.path.clone(),
+                        requested_ctx: None,
+                    });
+                }
+            }
+        }
 
         Self { window }
     }
